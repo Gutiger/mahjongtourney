@@ -41,6 +41,8 @@ let ofSize = 0
 let forRounds = 0
 let withGroupLeaders = false
 let playerNames = []
+let windNames = ["East", "South", "West", "North"]
+let textFieldRefs = {}
 let forbiddenPairs = Immutable.Set()
 let discouragedGroups = Immutable.Set()
 
@@ -62,6 +64,57 @@ let lastResults
 // See https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers
 const myWorker = new Worker('lib/worker.js');
 
+let finalScores = {}
+let chomboRefs = {}
+
+const scoreBoard = document.getElementById('scoreBoard');
+
+function updateScoreboard() {
+  const scoreBoard = document.getElementById('scoreBoard');
+  scoreBoard.innerHTML = '';
+  const sortedScores = Object.entries(finalScores).sort((a, b) => b[1] - a[1]);
+  const ul = document.createElement('ul');
+  sortedScores.forEach(([person, score], index) => {
+    const li = document.createElement('li');
+    li.classList.add('player-item');
+    var personNumberNested = person.replace('person-', '');
+    const place = getOrdinalSuffix(index + 1);
+    
+    // Create text node for the placement and score
+    const textNode = document.createTextNode(`${place}:   ${playerName(personNumberNested)}:   ${score.toFixed(2)} `);
+    li.appendChild(textNode);
+    
+    // Create chombo input field
+    const chomboInput = document.createElement('input');
+    chomboInput.type = 'number';
+    chomboInput.min = '0';
+    chomboInput.value = chomboRefs[person] || 0;
+    chomboInput.style.width = '50px';
+    chomboInput.style.marginLeft = '10px';
+    chomboInput.placeholder = 'Chombo';
+    
+    chomboInput.addEventListener('input', () => {
+      const chomboCount = parseInt(chomboInput.value) || 0;
+      chomboRefs[person] = chomboCount;
+      finalScores = {};
+      calculateValues();
+      updateScoreboard();
+      saveStateToLocalStorage();
+    });
+    
+    li.appendChild(chomboInput);
+    ul.appendChild(li);
+  });
+  scoreBoard.appendChild(ul);
+}
+
+function updateScoresImmediately() {
+  finalScores = {};
+  calculateValues();
+  updateScoreboard();
+  saveStateToLocalStorage();
+}
+
 // The init() function is called after the DOM is loaded. It prepares
 // the application by setting up event handlers and an initial state
 // and calling for an initial solution.
@@ -71,6 +124,9 @@ function init() {
   controlsDiv = document.getElementById('controls')
   resultsDiv = document.getElementById('results')
   helpDivs = document.querySelectorAll('.help-text')
+
+  //const calculateButton = document.getElementById('calculateButton');
+  //calculateButton.addEventListener('click', calculateValues);
 
   showHelpLink = document.getElementById("show-help-link")
   hideHelpLink = document.getElementById("hide-help-link")
@@ -88,7 +144,7 @@ function init() {
   controls.discouragedGroups = controlsDiv.querySelector('#discouragedGroups')
 
   // User input controls
-  controls.recomputeButton.onclick = recomputeResults;
+  controls.recomputeButton.onclick = recomputeResultsWrapper
   controls.groupsSlider.oninput = onSliderMoved
   controls.ofSizeSlider.oninput = onSliderMoved
   controls.forRoundsSlider.oninput = onSliderMoved
@@ -101,12 +157,29 @@ function init() {
   controls.forbiddenPairs.onchange = onForbiddenPairsChanged
   controls.discouragedGroups.onchange = onDiscouragedGroupsChanged
 
-  try {
-    loadStateFromLocalStorage()
-  } catch (err) {
-    console.info('Failed to load previous state');
-  }
+  // Add immediate update listeners for Oka, Uma, and Chombo fields
+  const okaField = document.getElementById('okaField')
+  const uma1Field = document.getElementById('uma1')
+  const uma2Field = document.getElementById('uma2')
+  const uma3Field = document.getElementById('uma3')
+  const uma4Field = document.getElementById('uma4')
+  const startingPointsField = document.getElementById('starting_points')
+  const chomboField = document.getElementById('chomboField')
 
+
+  if (okaField) okaField.addEventListener('input', updateScoresImmediately)
+  if (uma1Field) uma1Field.addEventListener('input', updateScoresImmediately)
+  if (uma2Field) uma2Field.addEventListener('input', updateScoresImmediately)
+  if (uma3Field) uma3Field.addEventListener('input', updateScoresImmediately)
+  if (uma4Field) uma4Field.addEventListener('input', updateScoresImmediately)
+  if (startingPointsField) startingPointsField.addEventListener('input', updateScoresImmediately)
+  if (chomboField) chomboField.addEventListener('input', updateScoresImmediately)
+	try {
+	  loadStateFromLocalStorage()
+	}
+	catch {
+		let fakeCatch = 1;
+	}
   playerNames = readPlayerNames()
   readConstraints(playerNames)
   onSliderLabelEdited()
@@ -128,9 +201,37 @@ function onResults(e) {
   }
 }
 
+function recomputeResultsWrapper() {
+	const scoreBoard = document.getElementById('scoreBoard');
+	if(scoreBoard.innerHTML.trim() !== "") {
+	const userConfirmed = confirm("Are you sure you want to restart the tournament? This will erase all scores and data.");
+
+	
+
+    if (userConfirmed) {
+        // Proceed with recomputing if user clicked OK
+        recomputeResults();  // Assuming you already have a function named recompute
+    } else {
+        // Prevent default button behavior if the user cancels
+        event.preventDefault();
+    }
+	}
+	else
+	{
+		recomputeResults();
+	}
+
+}
+
 function recomputeResults() {
   startTime = Date.now();
   lastResults = null;
+
+  const scoreBoard = document.getElementById('scoreBoard');
+  scoreBoard.innerHTML = null
+  saveStateToLocalStorage()
+
+  textFieldRefs = {}
   renderResults()
   disableControls()
   myWorker.postMessage({groups, ofSize, forRounds, withGroupLeaders, forbiddenPairs: forbiddenPairs.toJS(), discouragedGroups: discouragedGroups.toJS()})
@@ -141,6 +242,8 @@ function recomputeResults() {
 // returns to the page we restore the latest solution. This would be helpful
 // to teachers that need an updated configuration for the same class.
 function saveStateToLocalStorage() {
+  const scoreBoard = document.getElementById('scoreBoard');
+  scores = scoreBoard.innerHTML
   localStorage.setItem('appState', JSON.stringify({
     groups,
     ofSize,
@@ -149,8 +252,11 @@ function saveStateToLocalStorage() {
     playerNames,
     forbiddenPairs: forbiddenPairs.toJS(),
     discouragedGroups: discouragedGroups.toJS(),
-    lastResults
+    lastResults,
+    scores
   }))
+	    localStorage.setItem('textFieldRefs', JSON.stringify(textFieldRefs));
+	    localStorage.setItem('chomboRefs', JSON.stringify(chomboRefs));
 }
 
 // When we load state on page load, we pull state from local storage and
@@ -172,6 +278,20 @@ function loadStateFromLocalStorage() {
   controls.forbiddenPairs.value = state.forbiddenPairs.map(x => x.map(i => state.playerNames[i]).join(",")).join("\n")
   controls.discouragedGroups.value = state.discouragedGroups.map(x => x.map(i => state.playerNames[i]).join(",")).join("\n")
   lastResults = state.lastResults
+  //finalScores = state.finalScores
+  //console.log(finalScores);
+  	const scoreBoard = document.getElementById('scoreBoard');
+	scoreBoard.innerHTML = state.scores
+	const savedRefs = localStorage.getItem('textFieldRefs');
+    if (savedRefs) {
+        textFieldRefs = JSON.parse(savedRefs);
+    }
+	const savedChomboRefs = localStorage.getItem('chomboRefs');
+    if (savedChomboRefs) {
+        chomboRefs = JSON.parse(savedChomboRefs);
+    }
+	//console.log(textFieldRefs);
+
 }
 
 function onSliderMoved() {
@@ -228,7 +348,7 @@ function enableControls() {
   controls.discouragedGroups.disabled = false
   
   // Hide spinner
-  controls.recomputeButton.innerHTML = 'Recompute!'
+  controls.recomputeButton.innerHTML = 'Start Tournament!'
 }
 
 function readPlayerNames() {
@@ -239,13 +359,141 @@ function readPlayerNames() {
 
 function onPlayerNamesKeyUp() {
   playerNames = readPlayerNames()
-  renderResults()
+  updateDisplayedNames()
+}
+
+function updateDisplayedNames() {
+  // Update player names in tournament rounds
+  const memberElements = document.querySelectorAll('.player-item')
+  memberElements.forEach(member => {
+    // Find the input field to get the person number and wind direction
+    const inputField = member.querySelector('input')
+    if (inputField && inputField.id) {
+      const personMatch = inputField.id.match(/person-(\d+)/)
+      if (personMatch) {
+        const personNumber = parseInt(personMatch[1])
+        
+        // Get the current text to extract wind direction
+        const currentText = member.textContent || member.innerText
+        const windMatch = currentText.match(/^\(([^)]+)\)/)
+        
+        if (windMatch) {
+          const wind = windMatch[1]
+          
+          // Store the current input field properties
+          const inputValue = inputField.value
+          const inputId = inputField.id
+          
+          // Clear the member and rebuild with new name
+          member.innerHTML = ''
+          
+          // Create a text node for the label
+          const labelText = document.createTextNode(`(${wind}) ${playerName(personNumber)}: `)
+          member.appendChild(labelText)
+          
+          // Recreate the input field with the same properties
+          const newInput = document.createElement('input')
+          newInput.type = 'text'
+          newInput.id = inputId
+          newInput.value = inputValue
+          
+          // Copy the event listener logic from the original
+          newInput.addEventListener('input', () => {
+            finalScores = {}
+            const currentValue = parseFloat(newInput.value) || 0
+            textFieldRefs[inputId] = currentValue
+            calculateValues()
+
+            const scoreBoard = document.getElementById('scoreBoard')
+            scoreBoard.innerHTML = ''
+            const sortedScores = Object.entries(finalScores).sort((a, b) => b[1] - a[1])
+            const ul = document.createElement('ul')
+            sortedScores.forEach(([person, score], index) => {
+              const li = document.createElement('li')
+              li.classList.add('player-item');
+              var personNumberNested = person.replace('person-', '')
+              const place = getOrdinalSuffix(index + 1)
+              
+              // Create text node for the placement and score
+              const textNode = document.createTextNode(`${place}:   ${playerName(personNumberNested)}:   ${score.toFixed(2)} `);
+              li.appendChild(textNode);
+              
+              // Create chombo input field
+              const chomboInput = document.createElement('input');
+              chomboInput.type = 'number';
+              chomboInput.min = '0';
+              chomboInput.value = chomboRefs[person] || 0;
+              chomboInput.style.width = '50px';
+              chomboInput.style.marginLeft = '10px';
+              chomboInput.placeholder = 'Chombo';
+              
+              chomboInput.addEventListener('input', () => {
+                const chomboCount = parseInt(chomboInput.value) || 0;
+                chomboRefs[person] = chomboCount;
+                finalScores = {};
+                calculateValues();
+                updateScoreboard();
+                saveStateToLocalStorage();
+              });
+              
+              li.appendChild(chomboInput);
+              ul.appendChild(li)
+            })
+            scoreBoard.appendChild(ul)
+            saveStateToLocalStorage()
+          })
+          
+          member.appendChild(newInput)
+        }
+      }
+    }
+  })
+  
+  // Update player names in scoreboard if it exists
+  if (Object.keys(finalScores).length > 0) {
+    const scoreBoard = document.getElementById('scoreBoard')
+    scoreBoard.innerHTML = ''
+    const sortedScores = Object.entries(finalScores).sort((a, b) => b[1] - a[1])
+    const ul = document.createElement('ul')
+    sortedScores.forEach(([person, score], index) => {
+      const li = document.createElement('li')
+      li.classList.add('player-item');
+      var personNumberNested = person.replace('person-', '')
+      const place = getOrdinalSuffix(index + 1)
+      
+      // Create text node for the placement and score
+      const textNode = document.createTextNode(`${place}:   ${playerName(personNumberNested)}:   ${score.toFixed(2)} `);
+      li.appendChild(textNode);
+      
+      // Create chombo input field
+      const chomboInput = document.createElement('input');
+      chomboInput.type = 'number';
+      chomboInput.min = '0';
+      chomboInput.value = chomboRefs[person] || 0;
+      chomboInput.style.width = '50px';
+      chomboInput.style.marginLeft = '10px';
+      chomboInput.placeholder = 'Chombo';
+      
+      chomboInput.addEventListener('input', () => {
+        const chomboCount = parseInt(chomboInput.value) || 0;
+        chomboRefs[person] = chomboCount;
+        finalScores = {};
+        calculateValues();
+        updateScoreboard();
+        saveStateToLocalStorage();
+      });
+      
+      li.appendChild(chomboInput);
+      ul.appendChild(li)
+    })
+    scoreBoard.appendChild(ul)
+  }
 }
 
 function onPlayerNamesChanged() {
   playerNames = readPlayerNames()
   readConstraints(playerNames);
-  renderResults()
+  //renderResults()
 }
 
 function onForbiddenPairsChanged() {
@@ -386,17 +634,88 @@ function renderResults() {
         const groupDiv = document.createElement('div')
         groupDiv.classList.add('group')
         const groupName = document.createElement('h2')
-        groupName.textContent = `Group ${groupIndex + 1}`
+        groupName.textContent = `Table ${groupIndex + 1}`
         groupDiv.appendChild(groupName)
   
         const members = document.createElement('ul')
-        group.sort((a, b) => parseInt(a) < parseInt(b) ? -1 : 1).forEach(personNumber => {
+	let counter = 0;
+        group.forEach(personNumber => {
           const member = document.createElement('li')
-          member.textContent = playerName(personNumber)
+	  member.classList.add('player-item');
+	  const textField = document.createElement('input')
+          member.textContent = `(${windNames[counter]}) ${playerName(personNumber)}: `
+	  textField.type = 'text';
+	//const randomValue = Math.floor(Math.random() * 50000);
+    	//textField.value = randomValue;
+
+	  const fieldId = `round-${roundIndex}-table-${groupIndex}-person-${personNumber}`
+	  textField.id = fieldId
+
+	    // Restore saved value if available
+	    if (textFieldRefs[fieldId] !== undefined) {
+		textField.value = textFieldRefs[fieldId]; // Set saved value
+	    }
+
+	      textField.addEventListener('input', () => {
+		      finalScores = {}
+		      const currentValue = parseFloat(textField.value) || 0; // Convert to number or default to 0
+		      textFieldRefs[fieldId] = currentValue; // Set initial value
+		      calculateValues();
+
+		    const scoreBoard = document.getElementById('scoreBoard'); // Get the scoreboard element
+		    scoreBoard.innerHTML = ''; // Clear any previous content
+
+		    // Convert finalScores object to an array and sort it by score (descending order)
+		    const sortedScores = Object.entries(finalScores).sort((a, b) => b[1] - a[1]);
+
+		    // Create an unordered list to display the sorted scores
+		    const ul = document.createElement('ul');
+
+		    // Iterate over the sortedScores array and create list items
+		    sortedScores.forEach(([person, score], index) => {
+			const li = document.createElement('li');
+			li.classList.add('player-item');
+			var personNumberNested = person.replace('person-', '');
+			const place = getOrdinalSuffix(index + 1);
+			
+			// Create text node for the placement and score
+			const textNode = document.createTextNode(`${place}:   ${playerName(personNumberNested)}:   ${score.toFixed(2)} `);
+			li.appendChild(textNode);
+			
+			// Create chombo input field
+			const chomboInput = document.createElement('input');
+			chomboInput.type = 'number';
+			chomboInput.min = '0';
+			chomboInput.value = chomboRefs[person] || 0;
+			chomboInput.style.width = '50px';
+			chomboInput.style.marginLeft = '10px';
+			chomboInput.placeholder = 'Chombo';
+			
+			chomboInput.addEventListener('input', () => {
+			  const chomboCount = parseInt(chomboInput.value) || 0;
+			  chomboRefs[person] = chomboCount;
+			  finalScores = {};
+			  calculateValues();
+			  updateScoreboard();
+			  saveStateToLocalStorage();
+			});
+			
+			li.appendChild(chomboInput);
+			ul.appendChild(li);
+		    });
+
+		    // Append the sorted list to the scoreBoard
+		    scoreBoard.appendChild(ul);
+		      saveStateToLocalStorage();
+		
+
+	    });
+
+	  member.appendChild(textField)
           members.appendChild(member)
+	  counter++;
         })
         groupDiv.appendChild(members)
-  
         groups.appendChild(groupDiv)
       })
   
@@ -412,15 +731,6 @@ function renderResults() {
       summaryDiv.style.borderTop = 'solid #aaaaaa thin'
       summaryDiv.style.padding = '7px 0'
 
-      const csvButton = document.createElement('button')
-      csvButton.type = 'button'
-      csvButton.appendChild(document.createTextNode('Download CSV'))
-      csvButton.onclick = downloadCsv
-
-      const printButton = document.createElement('button')
-      printButton.type = 'button'
-      printButton.appendChild(document.createTextNode('Print Results'))
-      printButton.onclick = () => window.print()
       
       const elapsedTime = document.createElement('span')
       elapsedTime.style.fontStyle = 'italic'
@@ -433,9 +743,8 @@ function renderResults() {
       }
       
       summaryDiv.appendChild(elapsedTime)
-      summaryDiv.appendChild(csvButton)
-      summaryDiv.appendChild(printButton)
       resultsDiv.appendChild(summaryDiv)
+
     } else {
       resultsDiv.appendChild(document.createTextNode('Thinking...'));
     }
@@ -443,3 +752,172 @@ function renderResults() {
 }
 
 document.addEventListener('DOMContentLoaded', init)
+
+const NEGATIVE_DEFAULT = -1000000;
+
+// Function to get the values and perform a calculation
+function calculateValues() {
+    //console.log(textFieldRefs);
+
+  let nestedRefs = transformToNested(textFieldRefs);
+  processNestedScores(nestedRefs);
+  
+  // Apply chombo penalties after all rounds are processed
+  const chomboValue = parseInt(document.getElementById("chomboField").value) || 0;
+  for (const person in finalScores) {
+      const chomboCount = chomboRefs[person] || 0;
+      if (chomboCount > 0) {
+          finalScores[person] += chomboValue * chomboCount;
+      }
+  }
+  //console.log(finalScores);
+}
+
+// Function to process the nested dictionary of rounds, tables, and people
+function processNestedScores(nestedDict) {
+    for (let round in nestedDict) {
+        if (nestedDict.hasOwnProperty(round)) {
+            const tables = nestedDict[round];
+            
+            for (let table in tables) {
+                if (tables.hasOwnProperty(table)) {
+                    const peopleAtTable = tables[table];
+
+                    // Pass the table (peopleAtTable) to another function for further processing
+                    processTableScores(peopleAtTable);
+                }
+            }
+        }
+    }
+}
+
+// Function to process each table's scores and find the placement order
+function processTableScores(peopleAtTable) {
+    // Extract the non-zero scores (people who participated in this table)
+    const oka = parseInt(document.getElementById("okaField").value);
+    const uma1 = parseInt(document.getElementById("uma1").value);
+    const uma2 = parseInt(document.getElementById("uma2").value);
+    const uma3 = parseInt(document.getElementById("uma3").value);
+    const uma4 = parseInt(document.getElementById("uma4").value);
+    const starting_points = parseInt(document.getElementById("starting_points").value);
+
+    const participants = Object.entries(peopleAtTable)
+        .filter(([person, score]) => score !== NEGATIVE_DEFAULT) // Filter out non-competing people
+        .sort((a, b) => b[1] - a[1]); // Sort by score in descending order
+
+	//console.log("table is");
+	//console.log(participants);
+	var num_people_at_table = Object.keys(participants).length;
+
+        let umaArr = [uma1, uma2, uma3, uma4]
+        let okaArr = [oka*num_people_at_table, 0, 0, 0]
+
+	imbueOkaAndUma(participants, num_people_at_table, starting_points, okaArr, umaArr);
+}
+
+
+function imbueOkaAndUma(participants, num_people_at_table, starting_points, oka_array, uma_array) {
+
+
+    let adjustedOka = [...oka_array];
+    let adjustedUma = [...uma_array];
+
+    // Iterate through the participants to check for ties
+    for (let i = 0; i < participants.length; i++) {
+	let person = participants[i][0];
+        let score = participants[i][1];
+        let tiedIndices = [i]; // Start with the current index
+
+        // Check for subsequent participants with the same score
+        while (i + 1 < participants.length && participants[i + 1][1] === score) {
+            tiedIndices.push(i + 1); // Add the index of the tied participant
+            i++; // Move to the next participant
+        }
+
+        // If there are ties, average the corresponding values in oka_array and uma_array
+        if (tiedIndices.length > 1) {
+            const totalOka = tiedIndices.reduce((sum, index) => sum + adjustedOka[index], 0);
+            const totalUma = tiedIndices.reduce((sum, index) => sum + adjustedUma[index], 0);
+            const averageOka = totalOka / tiedIndices.length;
+            const averageUma = totalUma / tiedIndices.length;
+
+            // Update the tied indices with the averaged values
+            for (const index of tiedIndices) {
+                adjustedOka[index] = averageOka;
+                adjustedUma[index] = averageUma;
+	    }
+	}
+    }
+    for (let rank = 0; rank < participants.length; rank++) {
+        let person = participants[rank][0];
+        let score = participants[rank][1];
+
+	    const target = starting_points + oka_array[0];
+	    //console.log("num people, starting points, score, oka, uma");
+	    //console.log(num_people_at_table, starting_points, score, adjustedOka[rank], adjustedUma[rank]);
+	    finalScores[person] = (finalScores[person] || 0) + ((score + adjustedOka[rank] - target) / 1000) + adjustedUma[rank];
+    }
+}
+
+function transformToNested(textFieldRefs) {
+    const nestedRefs = {}; // The new nested structure
+    let maxRound = 0, maxTable = 0, maxPerson = 0;
+
+
+    // First, extract the highest indices
+    for (const key in textFieldRefs) {
+        // Use a regex to extract numbers after 'round-', 'table-', and 'person-'
+        const match = key.match(/round-(\d+)-table-(\d+)-person-(\d+)/);
+        if (match) {
+            const roundIndex = parseInt(match[1]);  // Extracted round number
+            const tableIndex = parseInt(match[2]);  // Extracted table number
+            const personIndex = parseInt(match[3]); // Extracted person number
+
+            // Update the maximum values
+            maxRound = Math.max(maxRound, roundIndex);
+            maxTable = Math.max(maxTable, tableIndex);
+            maxPerson = Math.max(maxPerson, personIndex);
+        }
+    }
+
+    // Create the nested structure based on the max indices
+    for (let r = 0; r <= maxRound; r++) {
+        nestedRefs[`round-${r}`] = {};
+        for (let t = 0; t <= maxTable; t++) {
+            nestedRefs[`round-${r}`][`table-${t}`] = {};
+            for (let p = 0; p <= maxPerson; p++) {
+                // Initialize to 0 (or any other default value) if necessary
+		//console.log(r, t, p)
+                nestedRefs[`round-${r}`][`table-${t}`][`person-${p}`] = NEGATIVE_DEFAULT; // set to a negative default value too great to reach
+            }
+        }
+    }
+
+
+    // Move the data from flat to nested structure
+    for (const key in textFieldRefs) {
+        const value = textFieldRefs[key];
+        const match = key.match(/round-(\d+)-table-(\d+)-person-(\d+)/);
+        if (match) {
+            const roundIndex = match[1];
+            const tableIndex = match[2];
+            const personIndex = match[3];
+
+            // Check if the structure exists before assigning value
+            if (nestedRefs[`round-${roundIndex}`] && nestedRefs[`round-${roundIndex}`][`table-${tableIndex}`]) {
+                nestedRefs[`round-${roundIndex}`][`table-${tableIndex}`][`person-${personIndex}`] = value;
+            } else {
+                console.error(`Structure not found for round-${roundIndex}, table-${tableIndex}, person-${personIndex}`);
+            }
+        }
+    
+    }
+    //console.log(nestedRefs);
+    return nestedRefs; // Return the new nested structure
+}
+
+function getOrdinalSuffix(n) {
+    const suffixes = ["th", "st", "nd", "rd"];
+    const value = n % 100;
+    return n + (suffixes[(value - 20) % 10] || suffixes[value] || suffixes[0]);
+}

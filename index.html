@@ -2,65 +2,434 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Good-Enough Golfers</title>
+    <title>Julian's Mahjong Tournament Organizer</title>
 
     <link rel="stylesheet" href="index.css"/>
     <script src="https://cdn.jsdelivr.net/npm/immutable@3.8.2/dist/immutable.min.js"></script>
     <script src="index.js" type="text/javascript"></script>
+
+    <style>
+        .uma-container {
+            display: flex; /* Flexbox to arrange Uma's fields in a row */
+            gap: 5px; /* Space between the fields */
+        }
+
+        .small-input {
+            width: 40px; /* Small width for Uma's fields */
+        }
+        /* Container for each player (li element) */
+        li.player-item {
+            display: flex;
+            justify-content: space-between;  /* Ensures the name and input field are spaced */
+            width: 300px; /* Total width you want for name + input */
+            padding: 5px;
+        }
+
+        /* Ensures the text field is sized dynamically within the given width */
+        li.player-item input {
+            width: 100px; /* Adjust this to control input field width */
+            flex-shrink: 0; /* Prevents shrinking beyond this width */
+        }
+
+        /* Optionally, you can style the player's name for better appearance */
+        li.player-item span {
+            white-space: nowrap; /* Prevents the name from wrapping */
+            overflow: hidden;
+            text-overflow: ellipsis; /* Adds '...' if the name is too long */
+        }
+	/* General Page Styling */
+body {
+    font-family: 'Trebuchet MS', sans-serif;
+    background-color: #e0efe7; /* Light green Mahjong table color */
+    margin: 0;
+    padding: 20px;
+    color: #333;
+}
+
+/* Title Styling */
+h1 {
+    font-size: 2em;
+    text-align: center;
+    color: #b22222; /* Rich red */
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    margin-bottom: 20px;
+}
+
+/* Subtitle Text */
+h2 {
+    font-size: 1.6em;
+    color: #b22222;
+    margin-top: 20px;
+    text-align: left;
+    border-bottom: 2px solid #b22222;
+    padding-bottom: 5px;
+}
+
+/* Scoreboard and Conflict Score */
+#scoreBoard, .conflict-score {
+    background-color: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+    border: 2px solid #b22222;
+    margin: 20px auto;
+}
+
+.conflict-score {
+    text-align: right;
+    font-size: 1.2em;
+    margin-right: 10px;
+    color: #b22222;
+    font-weight: bold;
+}
+
+/* Player Fields */
+.player-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #b22222;
+    margin-bottom: 5px;
+}
+
+.player-item:last-child {
+    border-bottom: none;
+}
+
+.player-item input {
+    width: 100px;
+    padding: 5px;
+    font-size: 1.2em;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    text-align: right;
+    background-color: #f9f9f9;
+}
+
+.oka-uma-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.oka-uma-row div {
+    text-align: center;
+}
+
+/* Starting Points, Oka, Uma, and Chombo Fields */
+#starting_points, #okaField, #uma1, #uma2, #uma3, #uma4, #chomboField, #forRoundsBox, #groupsBox, #ofSizeBox, #withGroupLeadersBox {
+    width: 80px;
+    margin: 10px;
+    padding: 10px;
+    border: 2px solid #b22222;
+    border-radius: 5px;
+    font-size: 1.2em;
+    background-color: #fff;
+    text-align: center;
+    color: #333;
+}
+
+#okaField, #uma1, #uma2, #uma3, #uma4, #chomboField {
+    margin: 5px;
+}
+
+/* Button Styling */
+button {
+    background-color: #006400; /* Dark green */
+    color: white;
+    padding: 15px 25px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1.2em;
+    margin: 20px 0;
+    width: 100%;
+}
+
+button:hover {
+    background-color: #228b22;
+    transition: background-color 0.3s ease-in-out;
+}
+
+/* Player Names Box */
+#playerNames {
+    width: 100%;
+    padding: 10px;
+    border: 2px solid #b22222;
+    border-radius: 5px;
+    font-size: 1.2em;
+    margin-bottom: 15px;
+    color: #333;
+    height: 150px;
+}
+
+input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 10px;
+    background: #b22222;
+    outline: none;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+    margin-bottom: 10px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    border: 2px solid #006400;
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    border: 2px solid #006400;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover,
+input[type="range"]::-moz-range-thumb:hover {
+    background-color: #228b22;
+}
+
+/* Labels and Spacing */
+
+label {
+    font-size: 1.2em;
+    margin-right: 10px;
+    color: #b22222;
+    display: inline-block;
+    width: 180px; /* Adjust width for consistent alignment */
+}
+
+.slider-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+/* Ensure the slider itself takes up enough width */
+input[type="range"] {
+    -webkit-appearance: none;
+    height: 10px;
+    background: #b22222;
+    outline: none;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+input[type="number"] {
+    font-size: 1.2em;
+    padding: 5px;
+    border-radius: 5px;
+    margin-bottom: 10px;
+    width: 60px;
+}
+
+/* Responsive Design */
+@media (max-width: 800px) {
+
+    button {
+        padding: 10px 15px;
+        font-size: 1em;
+    }
+
+    .player-item input {
+        width: 70px;
+    }
+}
+
+	/* Compact the layout */
+.compact-slider-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+/* Compact label */
+.compact-slider-row label {
+    font-size: 1.1em;
+    margin-right: 10px;
+    width: 150px;
+    text-align: right;
+}
+
+/* Make sliders smaller */
+.compact-slider-row input[type="range"] {
+    -webkit-appearance: none;
+    width: 150px;
+    height: 8px;
+    background: #b22222;
+    outline: none;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+/* Consistent Input Styles */
+input[type="number"], input[type="text"] {
+    padding: 5px;
+    font-size: 1.1em;
+    width: 50px; /* Keep input width smaller */
+    border: 2px solid #b22222;
+    border-radius: 3px;
+}
+
+/* Compact the entire section */
+#input-section {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+}
+
+/* Small tweaks for space around the Recompute button */
+#recompute-button {
+    margin: 20px 0;
+}
+
+/* Adjust the uma section */
+.uma-row input[type="text"] {
+    width: 45px;
+}
+
+
+.compact-slider-table {
+    width: 95%;
+}
+
+.compact-slider-table th {
+    text-align: left;
+    padding-right: 5px;
+        padding-left: 30px;
+    white-space: nowrap;
+}
+
+
+.compact-input {
+    width: 40px;
+    text-align: center;
+    border: 1px solid red;
+    border-radius: 4px;
+}
+
+.compact-slider {
+    margin-top: 15px;
+}
+
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 8px;
+    background: #ddd;
+    border-radius: 5px;
+    outline: none;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #c21f1f;
+    cursor: pointer;
+}
+
+
+    </style>
+
 </head>
 <body>
     <div id="controls">
-        <h1>Good-Enough Golfers</h1>
+        <h1>Julian's Mahjong Tournament Organizer</h1>
         <div>
-            <div class="help-text">
-                Click the "Recompute" button to get a new solution.
-                <br />Customize group size, number of groups and number of
-                rounds with the sliders.
-                <br />Solutions with more rounds and larger groups take longer
-                to compute.
-                <br />"Use Group Leaders?" keeps the first <em>N</em> players
-                with their respective groups.
+            <div class>
+                Click the "Start Tournament" button to get a new seating and erase all scores.
+                <br />
+		"Require scorers" makes it so each table must have one of the first N people (those that know how to score).
+		<br />
             </div>
         </div>
-        <button type="button" id="recomputeButton">Recompute!</button>
-        <table>
-            <tr>
-                <th>Number of groups</th>
-                <td class="sliderLabel">
-                  <input type=""text" id="groupsBox" value="5" />
-                </td>
-                <td>
-                    <input id="groupsSlider" type="range" min="1" max="50" step="1" value="5"/>
-                </td>
-            </tr>
-            <tr>
-                <th>People per group</th>
-                <td class="sliderLabel"}>
-                  <input type="text" id="ofSizeBox" value="4" />
-                </td>
-                <td>
-                    <input id="ofSizeSlider" type="range" min="2" max="15" step="1" value="4"/>
-                </td>
-            </tr>
-            <tr>
-                <th>Number of rounds</th>
-                <td class="sliderLabel"}>
-                  <input type="text" id="forRoundsBox" value="5" />
-                </td>
-                <td>
-                    <input id="forRoundsSlider" type="range" min="1" max="20" step="1" value="5"/>
-                </td>
-            </tr>
-            <tr>
-              <th>Use group leaders?</th>
-              <td class="sliderLabel">
-                <input id="withGroupLeadersBox" type="checkbox" />
-              </td>
-              <td>&nbsp;</td>
-            </tr>
-        </table>
+        <button type="button" id="recomputeButton">Start Tournament!</button>
+		</br>
+		<table class="compact-slider-table">
+    <tr>
+        <th>Number of groups</th>
+        <td>
+            <input type="text" id="groupsBox" class="compact-input" value="3" />
+        </td>
+        <td>
+            <input id="groupsSlider" type="range" min="1" max="50" step="1" value="3" class="compact-slider"/>
+        </td>
+        <th>People per group</th>
+        <td>
+            <input type="text" id="ofSizeBox" class="compact-input" value="4" />
+        </td>
+        <td>
+            <input id="ofSizeSlider" type="range" min="3" max="4" step="1" value="4" class="compact-slider"/>
+        </td>
+    </tr>
+    <tr>
+        <th>Number of rounds</th>
+        <td>
+            <input type="text" id="forRoundsBox" class="compact-input" value="3" />
+        </td>
+        <td>
+            <input id="forRoundsSlider" type="range" min="1" max="20" step="1" value="3" class="compact-slider"/>
+        </td>
+        <th>Require scorers?</th>
+        <td colspan="2">
+            <input id="withGroupLeadersBox" type="checkbox" />
+        </td>
+    </tr>
+</table>
+
+		</br>
         <div>
-            <div>
+	        <!-- Static text fields for Oka and Uma -->
+<div class="oka-uma-row">
+    <div>
+        <label>Starting points:</label>
+                </br>
+        <input type="text" id="starting_points" value="25000">
+    </div>
+
+    <div>
+        <label>Oka (per person):</label>
+		</br>
+        <input type="text" id="okaField" value="5000">
+    </div>
+
+    <div>
+        <label>Uma:</label>
+        <div class="uma-container">
+            <input type="text" class="small-input" id="uma1" value="15">
+            <input type="text" class="small-input" id="uma2" value="5">
+            <input type="text" class="small-input" id="uma3" value="-5">
+            <input type="text" class="small-input" id="uma4" value="-15">
+        </div>
+    </div>
+
+    <div>
+        <label>Chombo:</label>
+        </br>
+        <input type="text" id="chomboField" value="-10">
+    </div>
+</div>
+		</br>
+	    <div>
                 <strong>Player Names</strong>
             </div>
             <div class="help-text">
@@ -81,31 +450,23 @@
                 in the next box.
             </div>
             <div>
-                <textarea id="playerNames" rows="21">
-Alleson
+                <textarea id="playerNames" rows="13">
+Allison
 Brad
 Charlie
-Danielle
-Fredric
+Daniel
+Edward
+Fred
 George
 Harriet
 Ivan
 Jenny
 Karen
 Laura
-Mona
-Nathan
-Olive
-Penelope
-Rachel
-Stan
-Tom
-[Empty]
-[Empty]
 </textarea>
             </div>
         </div>
-        <div>
+        <div style="display: none;">
             <div>
                 <strong>Never allow these pairs</strong>
             </div>
@@ -122,7 +483,7 @@ Brad, Danielle
 </textarea>
             </div>
         </div>
-        <div>
+        <div style="display: none;">
             <div>
                 <strong>Prefer splitting these groups</strong>
             </div>
@@ -152,26 +513,14 @@ Brad,Ivan,Mona,Stan
             </div>
         </div>
         <p>
-            <em>Good-Enough Golfers</em> is a near-solver for a class of scheduling problems including the
-            <a href="http://mathworld.wolfram.com/SocialGolferProblem.html">Social Golfer Problem</a>
-            and
-            <a href="http://mathworld.wolfram.com/KirkmansSchoolgirlProblem.html">Kirkman's Schoolgirl Problem</a>.
-            The goal is to schedule <tt>g x p</tt> players into <tt>g</tt> groups of size <tt>p</tt> for
-            <tt>w</tt> weeks such that no two players meet more than once.
+	                <strong>Standings</strong>
+
+	<!--<button id="calculateButton">Calculate</button>-->
+	<div id="scoreBoard"></div> <!-- This will display the sorted finalScores -->
         </p>
         <p>
-            Real solutions to these problems can be extremely slow, but approximations are fast and
-            often good enough for real-world purposes.
         </p>
         <p>
-            <a href="http://bradleycbuchanan.com">B Buchanan</a>, 2017
-            -
-            <a href="https://github.com/islemaster/good-enough-golfers">View Source</a>
-            -
-            <a href="https://ko-fi.com/bcbeng">Tip Jar</a>
-            -
-            <a id="show-help-link" href="javascript:showHelp()">Help</a>
-            <a id="hide-help-link" href="javascript:hideHelp()">Close Help</a>
         </p>
     </div>
     <div id="results">
