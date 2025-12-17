@@ -196,8 +196,8 @@ class CountdownServer {
     }
 
     start(port = 3000) {
-        this.server.listen(port, () => {
-            console.log(`Countdown timer server running on http://localhost:${port}`);
+        this.server.listen(port, '0.0.0.0', () => {
+            console.log(`Countdown timer server running on port ${port}`);
         });
     }
 }
