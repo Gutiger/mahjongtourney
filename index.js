@@ -67,6 +67,16 @@ const myWorker = new Worker('lib/worker.js');
 let finalScores = {}
 let chomboRefs = {}
 
+// WebSocket synchronization flag
+let isSyncingFromServer = false;
+
+// Helper to send state updates
+function syncStateToServer(type, payload) {
+  if (!isSyncingFromServer && typeof wsClient !== 'undefined') {
+    wsClient.send(type, payload);
+  }
+}
+
 const scoreBoard = document.getElementById('scoreBoard');
 
 function updateScoreboard() {
@@ -100,6 +110,9 @@ function updateScoreboard() {
       calculateValues();
       updateScoreboard();
       saveStateToLocalStorage();
+
+      // WebSocket sync
+      syncStateToServer('UPDATE_CHOMBO', { person, count: chomboCount });
     });
     
     li.appendChild(chomboInput);
@@ -113,6 +126,25 @@ function updateScoresImmediately() {
   calculateValues();
   updateScoreboard();
   saveStateToLocalStorage();
+
+  // WebSocket sync - send current Uma/Oka config
+  const okaField = document.getElementById('okaField');
+  const uma1Field = document.getElementById('uma1');
+  const uma2Field = document.getElementById('uma2');
+  const uma3Field = document.getElementById('uma3');
+  const uma4Field = document.getElementById('uma4');
+  const startingPointsField = document.getElementById('starting_points');
+  const chomboField = document.getElementById('chomboField');
+
+  syncStateToServer('UPDATE_CONFIG', {
+    oka: okaField ? parseFloat(okaField.value) : null,
+    uma1: uma1Field ? parseFloat(uma1Field.value) : null,
+    uma2: uma2Field ? parseFloat(uma2Field.value) : null,
+    uma3: uma3Field ? parseFloat(uma3Field.value) : null,
+    uma4: uma4Field ? parseFloat(uma4Field.value) : null,
+    startingPoints: startingPointsField ? parseFloat(startingPointsField.value) : null,
+    chomboValue: chomboField ? parseFloat(chomboField.value) : null
+  });
 }
 
 // The init() function is called after the DOM is loaded. It prepares
@@ -190,6 +222,9 @@ function init() {
   } else {
     recomputeResults()
   }
+
+  // Setup WebSocket synchronization
+  setupWebSocketSync();
 }
 
 function onResults(e) {
@@ -198,6 +233,9 @@ function onResults(e) {
   if (lastResults.done) {
     saveStateToLocalStorage()
     enableControls()
+
+    // WebSocket sync - broadcast tournament results to all clients
+    syncStateToServer('UPDATE_RESULTS', { results: lastResults });
   }
 }
 
@@ -235,6 +273,11 @@ function recomputeResults() {
   renderResults()
   disableControls()
   myWorker.postMessage({groups, ofSize, forRounds, withGroupLeaders, forbiddenPairs: forbiddenPairs.toJS(), discouragedGroups: discouragedGroups.toJS()})
+
+  // WebSocket sync - notify all clients tournament is being recomputed
+  syncStateToServer('RECOMPUTE_TOURNAMENT', {
+    config: { groups, ofSize, forRounds, withGroupLeaders }
+  });
 }
 
 // Every time we finish computing results we save the solution and and the
@@ -294,6 +337,226 @@ function loadStateFromLocalStorage() {
 
 }
 
+// Setup WebSocket synchronization
+function setupWebSocketSync() {
+  // Handler for full state sync
+  wsClient.on('FULL_STATE', (message) => {
+    isSyncingFromServer = true;
+    const state = message.state;
+
+    // Check if server state is empty and we have localStorage
+    if (state.isEmpty && localStorage.getItem('appState')) {
+      console.log('Server state is empty, sending localStorage to restore');
+      const localState = JSON.parse(localStorage.getItem('appState'));
+      const localTextFieldRefs = JSON.parse(localStorage.getItem('textFieldRefs') || '{}');
+      const localChomboRefs = JSON.parse(localStorage.getItem('chomboRefs') || '{}');
+
+      wsClient.send('RESTORE_FROM_LOCALSTORAGE', {
+        state: {
+          groups: localState.groups,
+          ofSize: localState.ofSize,
+          forRounds: localState.forRounds,
+          withGroupLeaders: localState.withGroupLeaders,
+          playerNames: localState.playerNames,
+          forbiddenPairs: localState.forbiddenPairs,
+          discouragedGroups: localState.discouragedGroups,
+          lastResults: localState.lastResults,
+          textFieldRefs: localTextFieldRefs,
+          chomboRefs: localChomboRefs
+        }
+      });
+      isSyncingFromServer = false;
+      return;
+    }
+
+    // Don't update if server state is empty (initial state)
+    if (state.isEmpty) {
+      isSyncingFromServer = false;
+      return;
+    }
+
+    // Update all state variables
+    groups = state.groups;
+    ofSize = state.ofSize;
+    forRounds = state.forRounds;
+    withGroupLeaders = state.withGroupLeaders;
+    playerNames = state.playerNames;
+    forbiddenPairs = Immutable.Set(state.forbiddenPairs);
+    discouragedGroups = Immutable.Set(state.discouragedGroups);
+    lastResults = state.lastResults;
+    textFieldRefs = state.textFieldRefs;
+    chomboRefs = state.chomboRefs;
+
+    // Update UI to reflect state
+    controls.groupsBox.value = groups;
+    controls.ofSizeBox.value = ofSize;
+    controls.forRoundsBox.value = forRounds;
+    controls.withGroupLeadersBox.checked = withGroupLeaders;
+    controls.playerNames.value = playerNames.join('\n');
+
+    // Update Uma/Oka fields if they exist
+    const okaField = document.getElementById('okaField');
+    const uma1Field = document.getElementById('uma1');
+    const uma2Field = document.getElementById('uma2');
+    const uma3Field = document.getElementById('uma3');
+    const uma4Field = document.getElementById('uma4');
+    const startingPointsField = document.getElementById('starting_points');
+    const chomboField = document.getElementById('chomboField');
+
+    if (okaField && state.oka !== null) okaField.value = state.oka;
+    if (uma1Field && state.uma1 !== null) uma1Field.value = state.uma1;
+    if (uma2Field && state.uma2 !== null) uma2Field.value = state.uma2;
+    if (uma3Field && state.uma3 !== null) uma3Field.value = state.uma3;
+    if (uma4Field && state.uma4 !== null) uma4Field.value = state.uma4;
+    if (startingPointsField && state.startingPoints !== null) startingPointsField.value = state.startingPoints;
+    if (chomboField && state.chomboValue !== null) chomboField.value = state.chomboValue;
+
+    // Re-render if we have results
+    if (lastResults) {
+      renderResults();
+      finalScores = {};
+      calculateValues();
+      updateScoreboard();
+    }
+
+    isSyncingFromServer = false;
+  });
+
+  // Handler for text field updates
+  wsClient.on('TEXT_FIELD_UPDATED', (message) => {
+    isSyncingFromServer = true;
+    const { fieldId, value } = message.payload;
+    textFieldRefs[fieldId] = value;
+
+    // Update the input field in the DOM
+    const inputElement = document.getElementById(fieldId);
+    if (inputElement) {
+      inputElement.value = value;
+    }
+
+    // Recalculate scores
+    finalScores = {};
+    calculateValues();
+    updateScoreboard();
+    saveStateToLocalStorage();
+    isSyncingFromServer = false;
+  });
+
+  // Handler for chombo updates
+  wsClient.on('CHOMBO_UPDATED', (message) => {
+    isSyncingFromServer = true;
+    const { person, count } = message.payload;
+    chomboRefs[person] = count;
+
+    // Update chombo input in scoreboard if it exists
+    const chomboInput = document.querySelector(`input[data-person="${person}"]`);
+    if (chomboInput) {
+      chomboInput.value = count;
+    }
+
+    // Recalculate scores
+    finalScores = {};
+    calculateValues();
+    updateScoreboard();
+    saveStateToLocalStorage();
+    isSyncingFromServer = false;
+  });
+
+  // Handler for config updates
+  wsClient.on('CONFIG_UPDATED', (message) => {
+    isSyncingFromServer = true;
+    const payload = message.payload;
+
+    // Update tournament config if provided
+    if (payload.groups !== undefined) groups = payload.groups;
+    if (payload.ofSize !== undefined) ofSize = payload.ofSize;
+    if (payload.forRounds !== undefined) forRounds = payload.forRounds;
+    if (payload.withGroupLeaders !== undefined) withGroupLeaders = payload.withGroupLeaders;
+
+    // Update UI controls
+    controls.groupsBox.value = groups;
+    controls.ofSizeBox.value = ofSize;
+    controls.forRoundsBox.value = forRounds;
+    controls.withGroupLeadersBox.checked = withGroupLeaders;
+
+    // Update Uma/Oka fields if they're in the payload
+    const okaField = document.getElementById('okaField');
+    const uma1Field = document.getElementById('uma1');
+    const uma2Field = document.getElementById('uma2');
+    const uma3Field = document.getElementById('uma3');
+    const uma4Field = document.getElementById('uma4');
+    const startingPointsField = document.getElementById('starting_points');
+    const chomboField = document.getElementById('chomboField');
+
+    if (okaField && payload.oka !== undefined) okaField.value = payload.oka;
+    if (uma1Field && payload.uma1 !== undefined) uma1Field.value = payload.uma1;
+    if (uma2Field && payload.uma2 !== undefined) uma2Field.value = payload.uma2;
+    if (uma3Field && payload.uma3 !== undefined) uma3Field.value = payload.uma3;
+    if (uma4Field && payload.uma4 !== undefined) uma4Field.value = payload.uma4;
+    if (startingPointsField && payload.startingPoints !== undefined) startingPointsField.value = payload.startingPoints;
+    if (chomboField && payload.chomboValue !== undefined) chomboField.value = payload.chomboValue;
+
+    // Recalculate scores if Uma/Oka changed
+    if (payload.oka !== undefined || payload.uma1 !== undefined || payload.uma2 !== undefined ||
+        payload.uma3 !== undefined || payload.uma4 !== undefined || payload.startingPoints !== undefined ||
+        payload.chomboValue !== undefined) {
+      finalScores = {};
+      calculateValues();
+      updateScoreboard();
+    }
+
+    saveStateToLocalStorage();
+    isSyncingFromServer = false;
+  });
+
+  // Handler for player names updates
+  wsClient.on('PLAYER_NAMES_UPDATED', (message) => {
+    isSyncingFromServer = true;
+    playerNames = message.payload.playerNames;
+    controls.playerNames.value = playerNames.join('\n');
+    readConstraints(playerNames);
+    saveStateToLocalStorage();
+    isSyncingFromServer = false;
+  });
+
+  // Handler for tournament recompute
+  wsClient.on('TOURNAMENT_RECOMPUTED', (message) => {
+    isSyncingFromServer = true;
+    lastResults = null;
+    textFieldRefs = {};
+    chomboRefs = {};
+    finalScores = {};
+
+    const scoreBoard = document.getElementById('scoreBoard');
+    scoreBoard.innerHTML = '';
+
+    // Update config if provided
+    if (message.payload.config) {
+      Object.assign({groups, ofSize, forRounds, withGroupLeaders}, message.payload.config);
+      controls.groupsBox.value = groups;
+      controls.ofSizeBox.value = ofSize;
+      controls.forRoundsBox.value = forRounds;
+      controls.withGroupLeadersBox.checked = withGroupLeaders;
+    }
+
+    renderResults();
+    saveStateToLocalStorage();
+    isSyncingFromServer = false;
+  });
+
+  // Handler for results updates
+  wsClient.on('RESULTS_UPDATED', (message) => {
+    isSyncingFromServer = true;
+    lastResults = message.payload.results;
+    renderResults();
+    saveStateToLocalStorage();
+    isSyncingFromServer = false;
+  });
+
+  // Connect WebSocket
+  wsClient.connect();
+}
+
 function onSliderMoved() {
   groups = parseInt(controls.groupsSlider.value, 10)
   ofSize = parseInt(controls.ofSizeSlider.value, 10)
@@ -303,6 +566,9 @@ function onSliderMoved() {
   controls.groupsBox.value = groups
   controls.ofSizeBox.value = ofSize
   controls.forRoundsBox.value = forRounds
+
+  // WebSocket sync
+  syncStateToServer('UPDATE_CONFIG', { groups, ofSize, forRounds });
 }
 
 function onSliderLabelEdited() {
@@ -313,14 +579,20 @@ function onSliderLabelEdited() {
   controls.groupsSlider.max = Math.max(groups, controls.groupsSlider.max);
   controls.ofSizeSlider.max = Math.max(ofSize, controls.ofSizeSlider.max);
   controls.forRoundsSlider.max = Math.max(forRounds, controls.forRoundsSlider.max);
-  
+
   controls.groupsSlider.value = groups
   controls.ofSizeSlider.value = Math.min(controls.ofSizeSlider.max, ofSize);
   controls.forRoundsSlider.value = Math.min(controls.forRoundsSlider.max, forRounds);
+
+  // WebSocket sync
+  syncStateToServer('UPDATE_CONFIG', { groups, ofSize, forRounds });
 }
 
 function onWithGroupLeadersChanged() {
   withGroupLeaders = controls.withGroupLeadersBox.checked
+
+  // WebSocket sync
+  syncStateToServer('UPDATE_CONFIG', { withGroupLeaders });
 }
 
 function disableControls() {
@@ -413,11 +685,11 @@ function updateDisplayedNames() {
               li.classList.add('player-item');
               var personNumberNested = person.replace('person-', '')
               const place = getOrdinalSuffix(index + 1)
-              
+
               // Create text node for the placement and score
               const textNode = document.createTextNode(`${place}:   ${playerName(personNumberNested)}:   ${score.toFixed(2)} `);
               li.appendChild(textNode);
-              
+
               // Create chombo input field
               const chomboInput = document.createElement('input');
               chomboInput.type = 'number';
@@ -426,7 +698,7 @@ function updateDisplayedNames() {
               chomboInput.style.width = '50px';
               chomboInput.style.marginLeft = '10px';
               chomboInput.placeholder = 'Chombo';
-              
+
               chomboInput.addEventListener('input', () => {
                 const chomboCount = parseInt(chomboInput.value) || 0;
                 chomboRefs[person] = chomboCount;
@@ -434,13 +706,19 @@ function updateDisplayedNames() {
                 calculateValues();
                 updateScoreboard();
                 saveStateToLocalStorage();
+
+                // WebSocket sync
+                syncStateToServer('UPDATE_CHOMBO', { person, count: chomboCount });
               });
-              
+
               li.appendChild(chomboInput);
               ul.appendChild(li)
             })
             scoreBoard.appendChild(ul)
             saveStateToLocalStorage()
+
+            // WebSocket sync
+            syncStateToServer('UPDATE_TEXT_FIELD', { fieldId: inputId, value: currentValue });
           })
           
           member.appendChild(newInput)
@@ -494,6 +772,9 @@ function onPlayerNamesChanged() {
   playerNames = readPlayerNames()
   readConstraints(playerNames);
   //renderResults()
+
+  // WebSocket sync
+  syncStateToServer('UPDATE_PLAYER_NAMES', { playerNames });
 }
 
 function onForbiddenPairsChanged() {
@@ -677,11 +958,11 @@ function renderResults() {
 			li.classList.add('player-item');
 			var personNumberNested = person.replace('person-', '');
 			const place = getOrdinalSuffix(index + 1);
-			
+
 			// Create text node for the placement and score
 			const textNode = document.createTextNode(`${place}:   ${playerName(personNumberNested)}:   ${score.toFixed(2)} `);
 			li.appendChild(textNode);
-			
+
 			// Create chombo input field
 			const chomboInput = document.createElement('input');
 			chomboInput.type = 'number';
@@ -690,7 +971,7 @@ function renderResults() {
 			chomboInput.style.width = '50px';
 			chomboInput.style.marginLeft = '10px';
 			chomboInput.placeholder = 'Chombo';
-			
+
 			chomboInput.addEventListener('input', () => {
 			  const chomboCount = parseInt(chomboInput.value) || 0;
 			  chomboRefs[person] = chomboCount;
@@ -698,8 +979,11 @@ function renderResults() {
 			  calculateValues();
 			  updateScoreboard();
 			  saveStateToLocalStorage();
+
+			  // WebSocket sync
+			  syncStateToServer('UPDATE_CHOMBO', { person, count: chomboCount });
 			});
-			
+
 			li.appendChild(chomboInput);
 			ul.appendChild(li);
 		    });
@@ -707,7 +991,9 @@ function renderResults() {
 		    // Append the sorted list to the scoreBoard
 		    scoreBoard.appendChild(ul);
 		      saveStateToLocalStorage();
-		
+
+		      // WebSocket sync
+		      syncStateToServer('UPDATE_TEXT_FIELD', { fieldId, value: currentValue });
 
 	    });
 
