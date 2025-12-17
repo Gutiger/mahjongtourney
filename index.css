@@ -153,3 +153,162 @@ Print mode: Something you could hand out to students.
   .resultsSummary { display: none; }
   .round { break-inside: avoid; }
 }
+
+/*
+Mobile responsive styles
+*/
+@media (max-width: 768px) {
+  /* Stack controls and results vertically on mobile */
+  body {
+    flex-direction: column;
+    padding: 10px;
+  }
+
+  /* Make controls full-width on mobile */
+  #controls {
+    margin-right: 0;
+    margin-bottom: 1em;
+    width: 100%;
+  }
+
+  #controls p {
+    max-width: 100%;
+  }
+
+  /* Make results full-width on mobile */
+  #results {
+    width: 100%;
+  }
+
+  /* Make help text responsive */
+  .help-text {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 90%;
+    max-width: 400px;
+    margin-left: 0;
+    z-index: 1000;
+  }
+
+  /* Increase button touch targets */
+  #controls button {
+    padding: 12px;
+    font-size: 16px;
+    min-height: 44px; /* iOS recommended touch target */
+  }
+
+  /* Make input fields more touch-friendly */
+  input[type="text"],
+  input[type="number"],
+  textarea,
+  select {
+    font-size: 16px; /* Prevents zoom on iOS */
+    padding: 8px;
+  }
+
+  /* Adjust scoreboard for mobile */
+  #scoreBoard {
+    padding: 10px;
+  }
+
+  li.player-item {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  li.player-item input {
+    width: 80px;
+  }
+
+  /* Make groups stack better on mobile */
+  #results .groups {
+    flex-direction: column;
+  }
+
+  #results .groups .group {
+    width: 100%;
+    min-width: unset;
+    margin-bottom: 10px;
+  }
+
+  /* Adjust titles for mobile */
+  h1 {
+    font-size: 1.5em;
+  }
+
+  h2 {
+    font-size: 1.2em;
+  }
+
+  /* Make sliders easier to use on mobile */
+  input[type="range"] {
+    height: 30px;
+  }
+
+  #controls .sliderLabel input {
+    font-size: 16px;
+    padding: 4px;
+  }
+
+  /* Adjust connection status for mobile */
+  #connection-status {
+    top: 5px !important;
+    right: 5px !important;
+    padding: 8px 15px !important;
+    font-size: 14px !important;
+  }
+}
+
+/* Tablet and small desktop (768px - 1024px) */
+@media (min-width: 769px) and (max-width: 1024px) {
+  #results {
+    width: 60%;
+  }
+
+  #controls p {
+    max-width: 100%;
+  }
+}
+
+/* Very small phones (max-width: 480px) */
+@media (max-width: 480px) {
+  body {
+    padding: 5px;
+  }
+
+  h1 {
+    font-size: 1.3em;
+    margin-bottom: 10px;
+  }
+
+  h2 {
+    font-size: 1.1em;
+  }
+
+  #scoreBoard,
+  .conflict-score {
+    padding: 10px;
+  }
+
+  .player-item {
+    padding: 8px 0;
+    font-size: 14px;
+  }
+
+  li.player-item input {
+    width: 60px;
+    font-size: 14px;
+  }
+
+  .small-input {
+    width: 35px;
+  }
+
+  /* Stack uma fields vertically on very small screens */
+  .uma-container {
+    flex-wrap: wrap;
+    gap: 3px;
+  }
+}
