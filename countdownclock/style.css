@@ -1,0 +1,235 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+@font-face {
+    font-family: 'SevenSegment';
+    src: url('data:font/truetype;charset=utf-8;base64,') format('truetype');
+}
+
+/* Fallback seven-segment style using CSS */
+.seven-segment {
+    font-family: 'DSEG7Classic', 'Courier New', monospace;
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    font-variant-numeric: tabular-nums;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #000814;
+    color: white;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.container {
+    text-align: center;
+    background: #001d3d;
+    padding: 3rem;
+    border-radius: 15px;
+    border: 3px solid #003566;
+}
+
+.title {
+    color: #00b4d8;
+    font-size: 2rem;
+    margin-bottom: 2rem;
+    font-weight: bold;
+}
+
+.countdown-display {
+    margin-bottom: 3rem;
+    background: #000814;
+    padding: 2rem;
+    border-radius: 10px;
+    border: 2px solid #003566;
+}
+
+.timer {
+    font-size: 5rem;
+    font-weight: bold;
+    letter-spacing: 0.3em;
+    margin-bottom: 1rem;
+    font-family: 'DSEG7Classic', 'Courier New', monospace;
+    font-style: italic;
+    color: #0077be;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-variant-numeric: tabular-nums;
+    text-transform: uppercase;
+}
+
+.status {
+    font-size: 1.2rem;
+    color: #00b4d8;
+    margin-bottom: 1rem;
+    font-weight: bold;
+}
+
+.controls {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    align-items: center;
+}
+
+.input-row {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.input-group label {
+    font-size: 0.9rem;
+    color: #00b4d8;
+    text-align: center;
+}
+
+.input-group input {
+    background: #000814;
+    border: 2px solid #003566;
+    border-radius: 5px;
+    padding: 0.5rem;
+    color: #0077be;
+    font-size: 1rem;
+    width: 70px;
+    text-align: center;
+    font-family: 'DSEG7Classic', 'Courier New', monospace;
+    font-weight: bold;
+}
+
+.input-group input::-webkit-outer-spin-button,
+.input-group input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    background: #003566;
+    border: 1px solid #0077be;
+    border-radius: 3px;
+}
+
+.input-group input[type=number] {
+    -moz-appearance: textfield;
+}
+
+.input-group input::-webkit-inner-spin-button {
+    opacity: 1;
+    cursor: pointer;
+    background: #003566;
+    border: 1px solid #0077be;
+    width: 20px;
+    height: 20px;
+}
+
+.input-group input:focus {
+    outline: none;
+    border: 2px solid #0077be;
+}
+
+.button-group {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.btn {
+    padding: 0.8rem 1.5rem;
+    border: none;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 80px;
+}
+
+.btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    background-color: #0077be;
+    color: #001d3d;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn.primary {
+    background: #003566;
+    color: #0077be;
+    border: 2px solid #0077be;
+}
+
+.btn.secondary {
+    background: #001d3d;
+    color: #0077be;
+    border: 2px solid #003566;
+}
+
+.connection-status {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: bold;
+}
+
+.connection-status.connected {
+    background: rgba(76, 175, 80, 0.8);
+    color: white;
+}
+
+.connection-status.disconnected {
+    background: rgba(255, 193, 7, 0.8);
+    color: black;
+}
+
+.connection-status.error {
+    background: rgba(244, 67, 54, 0.8);
+    color: white;
+}
+
+@media (max-width: 768px) {
+    .container {
+        margin: 1rem;
+        padding: 1.5rem;
+    }
+    
+    .timer {
+        font-size: 3rem;
+        letter-spacing: 0.1em;
+    }
+    
+    .button-group {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .btn {
+        width: 100%;
+    }
+    
+    .input-row {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .input-group {
+        margin: 0.3rem 0;
+    }
+}
