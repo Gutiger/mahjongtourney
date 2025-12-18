@@ -344,38 +344,16 @@ function setupWebSocketSync() {
     isSyncingFromServer = true;
     const state = message.state;
 
-    // Check if server state is empty and we have localStorage
-    if (state.isEmpty && localStorage.getItem('appState')) {
-      console.log('Server state is empty, sending localStorage to restore');
-      const localState = JSON.parse(localStorage.getItem('appState'));
-      const localTextFieldRefs = JSON.parse(localStorage.getItem('textFieldRefs') || '{}');
-      const localChomboRefs = JSON.parse(localStorage.getItem('chomboRefs') || '{}');
-
-      wsClient.send('RESTORE_FROM_LOCALSTORAGE', {
-        state: {
-          groups: localState.groups,
-          ofSize: localState.ofSize,
-          forRounds: localState.forRounds,
-          withGroupLeaders: localState.withGroupLeaders,
-          playerNames: localState.playerNames,
-          forbiddenPairs: localState.forbiddenPairs,
-          discouragedGroups: localState.discouragedGroups,
-          lastResults: localState.lastResults,
-          textFieldRefs: localTextFieldRefs,
-          chomboRefs: localChomboRefs
-        }
-      });
-      isSyncingFromServer = false;
-      return;
-    }
-
-    // Don't update if server state is empty (initial state)
+    // Server state always wins - only apply if server has actual state
+    // If server just started (isEmpty), do nothing - keep local state from localStorage
     if (state.isEmpty) {
+      console.log('Server has no state yet - keeping local state');
       isSyncingFromServer = false;
       return;
     }
 
-    // Update all state variables
+    // Apply server state (overrides localStorage)
+    console.log('Applying server state');
     groups = state.groups;
     ofSize = state.ofSize;
     forRounds = state.forRounds;
