@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mahjong Hall of Fame</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Georgia', serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #f1f1f1;
+            min-height: 100vh;
+            padding: 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        .tile-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .floating-tile {
+            position: absolute;
+            font-size: 3em;
+            opacity: 0.3;
+            animation: float-down linear infinite;
+        }
+
+        @keyframes float-down {
+            0% {
+                transform: translateY(-100px) rotate(0deg);
+            }
+            100% {
+                transform: translateY(calc(100vh + 100px)) rotate(360deg);
+            }
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        header {
+            text-align: center;
+            padding: 40px 20px;
+            margin-bottom: 40px;
+            border-bottom: 3px solid #d4af37;
+        }
+
+        h1 {
+            font-size: 3.5em;
+            color: #d4af37;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            margin-bottom: 10px;
+            letter-spacing: 2px;
+        }
+
+        .subtitle {
+            font-size: 1.3em;
+            color: #e8e8e8;
+            font-style: italic;
+            margin-top: 10px;
+        }
+
+        .trophy-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+
+        .winners-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            padding: 20px;
+        }
+
+        .winner-card {
+            background: linear-gradient(145deg, #2d3561 0%, #1f2544 100%);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+            border: 2px solid #3d4a7a;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .winner-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(212, 175, 55, 0.1) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .winner-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 30px rgba(212, 175, 55, 0.3);
+            border-color: #d4af37;
+        }
+
+        .winner-card:hover::before {
+            opacity: 1;
+        }
+
+        .winner-rank {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: #d4af37;
+            color: #1a1a2e;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.2em;
+            box-shadow: 0 4px 10px rgba(212, 175, 55, 0.4);
+        }
+
+        .tournament-name {
+            font-size: 1.5em;
+            color: #d4af37;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .winner-name {
+            font-size: 1.8em;
+            color: #ffffff;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .tournament-date {
+            color: #b0b0b0;
+            font-size: 1.1em;
+            margin-bottom: 15px;
+            font-style: italic;
+        }
+
+        .tile-symbol {
+            font-size: 2.5em;
+            margin-top: 15px;
+            opacity: 0.6;
+        }
+
+        .stats {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #3d4a7a;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            color: #c0c0c0;
+        }
+
+        .stat-label {
+            font-weight: bold;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2.5em;
+            }
+
+            .winners-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .winner-card {
+                padding: 20px;
+            }
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 60px;
+            padding: 30px;
+            color: #888;
+            border-top: 2px solid #3d4a7a;
+        }
+    </style>
+</head>
+<body>
+    <div class="tile-background">
+        <div class="floating-tile" style="left: 5%; animation-duration: 15s; animation-delay: 0s;">🀀</div>
+        <div class="floating-tile" style="left: 15%; animation-duration: 20s; animation-delay: 2s;">🀁</div>
+        <div class="floating-tile" style="left: 25%; animation-duration: 18s; animation-delay: 4s;">🀂</div>
+        <div class="floating-tile" style="left: 35%; animation-duration: 22s; animation-delay: 1s;">🀃</div>
+        <div class="floating-tile" style="left: 45%; animation-duration: 16s; animation-delay: 3s;">🀄︎</div>
+        <div class="floating-tile" style="left: 55%; animation-duration: 19s; animation-delay: 5s;">🀅</div>
+        <div class="floating-tile" style="left: 65%; animation-duration: 17s; animation-delay: 2s;">🀆</div>
+        <div class="floating-tile" style="left: 75%; animation-duration: 21s; animation-delay: 0s;">🀇</div>
+        <div class="floating-tile" style="left: 85%; animation-duration: 23s; animation-delay: 3s;">🀈</div>
+        <div class="floating-tile" style="left: 95%; animation-duration: 15s; animation-delay: 6s;">🀉</div>
+        <div class="floating-tile" style="left: 10%; animation-duration: 20s; animation-delay: 7s;">🀊</div>
+        <div class="floating-tile" style="left: 30%; animation-duration: 18s; animation-delay: 4s;">🀋</div>
+        <div class="floating-tile" style="left: 50%; animation-duration: 16s; animation-delay: 1s;">🀌</div>
+        <div class="floating-tile" style="left: 70%; animation-duration: 22s; animation-delay: 5s;">🀍</div>
+        <div class="floating-tile" style="left: 90%; animation-duration: 19s; animation-delay: 2s;">🀎</div>
+    </div>
+    <div class="container">
+        <header>
+            <div class="trophy-icon">🏆</div>
+            <h1>Jonging It Tournament Winners</h1>
+            <p class="subtitle">Those who have caused the greatest damage without a single benefit</p>
+        </header>
+
+        <div class="winners-grid">
+            <!-- Winner Card 1 -->
+            <div class="winner-card">
+                <div class="winner-rank">#1</div>
+                <div class="tournament-name">Jonging It</div>
+                <div class="winner-name">Richard 🀀🀁🀂🀃🀄︎🀅🀆</div>
+                <div class="tournament-date">December 21, 2025</div>
+            </div>
+
+            <!-- Winner Card 2 -->
+            <div class="winner-card">
+                <div class="winner-rank">#2</div>
+                <div class="tournament-name">Jonging It</div>
+                <div class="winner-name">Julian</div>
+                <div class="tournament-date">March 15, 2025</div>
+            </div>
+
+            <!-- Winner Card 3 -->
+            <div class="winner-card">
+                <div class="winner-rank">#3</div>
+                <div class="tournament-name">Jonging It</div>
+                <div class="winner-name">Matt</div>
+                <div class="tournament-date">May 18, 2025</div>
+            </div>
+
+            <!-- Winner Card 4 -->
+            <div class="winner-card">
+                <div class="winner-rank">#4</div>
+                <div class="tournament-name">Jonging It</div>
+                <div class="winner-name">Evan 🀄︎🀅🀆</div>
+                <div class="tournament-date">August 16, 2025</div>
+            </div>
+
+            <!-- Winner Card 5 -->
+            <div class="winner-card">
+                <div class="winner-rank">#5</div>
+                <div class="tournament-name">Jonging It</div>
+                <div class="winner-name">You????????</div>
+                <div class="tournament-date">December 22, 2025</div>
+            </div>
+
+            <!-- Add more winner cards as needed -->
+        </div>
+
+        <footer>
+            <p>🀄 I think we should play Mahjong 🀄</p>
+        </footer>
+    </div>
+</body>
+</html>
