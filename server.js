@@ -136,6 +136,22 @@ function handleClientMessage(ws, data) {
       }));
       break;
 
+    case 'RESTORE_FROM_LOCALSTORAGE':
+      // Only restore if server state is empty
+      if (serverState.isEmpty) {
+        console.log('Restoring server state from client localStorage');
+        serverState = {
+          ...payload.state,
+          version: serverState.version + 1,
+          lastUpdated: Date.now(),
+          isEmpty: false
+        };
+
+        // Broadcast the restored state to all clients
+        broadcastStateChange('FULL_STATE', { state: serverState });
+      }
+      break;
+
     default:
       console.warn('Unknown message type:', type);
   }
