@@ -109,7 +109,6 @@ function updateScoreboard() {
       finalScores = {};
       calculateValues();
       updateScoreboard();
-      saveStateToLocalStorage();
 
       // WebSocket sync
       syncStateToServer('UPDATE_CHOMBO', { person, count: chomboCount });
@@ -125,7 +124,6 @@ function updateScoresImmediately() {
   finalScores = {};
   calculateValues();
   updateScoreboard();
-  saveStateToLocalStorage();
 
   // WebSocket sync - send current Uma/Oka config
   const okaField = document.getElementById('okaField');
@@ -206,12 +204,7 @@ function init() {
   if (uma4Field) uma4Field.addEventListener('input', updateScoresImmediately)
   if (startingPointsField) startingPointsField.addEventListener('input', updateScoresImmediately)
   if (chomboField) chomboField.addEventListener('input', updateScoresImmediately)
-	try {
-	  loadStateFromLocalStorage()
-	}
-	catch {
-		let fakeCatch = 1;
-	}
+
   playerNames = readPlayerNames()
   readConstraints(playerNames)
   onSliderLabelEdited()
@@ -231,7 +224,6 @@ function onResults(e) {
   lastResults = e.data
   renderResults()
   if (lastResults.done) {
-    saveStateToLocalStorage()
     enableControls()
 
     // WebSocket sync - broadcast tournament results to all clients
@@ -267,7 +259,6 @@ function recomputeResults() {
 
   const scoreBoard = document.getElementById('scoreBoard');
   scoreBoard.innerHTML = null
-  saveStateToLocalStorage()
 
   textFieldRefs = {}
   renderResults()
@@ -280,62 +271,6 @@ function recomputeResults() {
   });
 }
 
-// Every time we finish computing results we save the solution and and the
-// input parameters that produced it to local storage. Whenever the user
-// returns to the page we restore the latest solution. This would be helpful
-// to teachers that need an updated configuration for the same class.
-function saveStateToLocalStorage() {
-  const scoreBoard = document.getElementById('scoreBoard');
-  scores = scoreBoard.innerHTML
-  localStorage.setItem('appState', JSON.stringify({
-    groups,
-    ofSize,
-    forRounds,
-    withGroupLeaders: !!withGroupLeaders,
-    playerNames,
-    forbiddenPairs: forbiddenPairs.toJS(),
-    discouragedGroups: discouragedGroups.toJS(),
-    lastResults,
-    scores
-  }))
-	    localStorage.setItem('textFieldRefs', JSON.stringify(textFieldRefs));
-	    localStorage.setItem('chomboRefs', JSON.stringify(chomboRefs));
-}
-
-// When we load state on page load, we pull state from local storage and
-// (mostly) write the state directly to the page controls. Then the normal
-// initialization process will pick up the state from the controls.
-// The one exception is that we load lastResults directly into the relevant
-// variable, because it doesn't have a corresponding control on the page.
-// This method will throw if a past state is not found in local storage or
-// if we fail to deserialize it for some reason.
-function loadStateFromLocalStorage() {
-  const state = JSON.parse(localStorage.getItem('appState'))
-  if (!state) throw new Error('Failed to load stored state')
-
-  controls.groupsBox.value = state.groups
-  controls.ofSizeBox.value = state.ofSize
-  controls.forRoundsBox.value = state.forRounds
-  controls.withGroupLeadersBox.checked = !!state.withGroupLeaders
-  controls.playerNames.value = state.playerNames.join("\n")
-  controls.forbiddenPairs.value = state.forbiddenPairs.map(x => x.map(i => state.playerNames[i]).join(",")).join("\n")
-  controls.discouragedGroups.value = state.discouragedGroups.map(x => x.map(i => state.playerNames[i]).join(",")).join("\n")
-  lastResults = state.lastResults
-  //finalScores = state.finalScores
-  //console.log(finalScores);
-  	const scoreBoard = document.getElementById('scoreBoard');
-	scoreBoard.innerHTML = state.scores
-	const savedRefs = localStorage.getItem('textFieldRefs');
-    if (savedRefs) {
-        textFieldRefs = JSON.parse(savedRefs);
-    }
-	const savedChomboRefs = localStorage.getItem('chomboRefs');
-    if (savedChomboRefs) {
-        chomboRefs = JSON.parse(savedChomboRefs);
-    }
-	//console.log(textFieldRefs);
-
-}
 
 // Setup WebSocket synchronization
 function setupWebSocketSync() {
@@ -345,14 +280,14 @@ function setupWebSocketSync() {
     const state = message.state;
 
     // Server state always wins - only apply if server has actual state
-    // If server just started (isEmpty), do nothing - keep local state from localStorage
+    // If server just started (isEmpty), do nothing - keep current client state
     if (state.isEmpty) {
-      console.log('Server has no state yet - keeping local state');
+      console.log('Server has no state yet - keeping current client state');
       isSyncingFromServer = false;
       return;
     }
 
-    // Apply server state (overrides localStorage)
+    // Apply server state
     console.log('Applying server state');
     groups = state.groups;
     ofSize = state.ofSize;
@@ -416,7 +351,6 @@ function setupWebSocketSync() {
     finalScores = {};
     calculateValues();
     updateScoreboard();
-    saveStateToLocalStorage();
     isSyncingFromServer = false;
   });
 
@@ -436,7 +370,6 @@ function setupWebSocketSync() {
     finalScores = {};
     calculateValues();
     updateScoreboard();
-    saveStateToLocalStorage();
     isSyncingFromServer = false;
   });
 
@@ -483,7 +416,6 @@ function setupWebSocketSync() {
       updateScoreboard();
     }
 
-    saveStateToLocalStorage();
     isSyncingFromServer = false;
   });
 
@@ -493,7 +425,6 @@ function setupWebSocketSync() {
     playerNames = message.payload.playerNames;
     controls.playerNames.value = playerNames.join('\n');
     readConstraints(playerNames);
-    saveStateToLocalStorage();
     isSyncingFromServer = false;
   });
 
@@ -518,7 +449,6 @@ function setupWebSocketSync() {
     }
 
     renderResults();
-    saveStateToLocalStorage();
     isSyncingFromServer = false;
   });
 
@@ -527,7 +457,6 @@ function setupWebSocketSync() {
     isSyncingFromServer = true;
     lastResults = message.payload.results;
     renderResults();
-    saveStateToLocalStorage();
     isSyncingFromServer = false;
   });
 
@@ -683,7 +612,6 @@ function updateDisplayedNames() {
                 finalScores = {};
                 calculateValues();
                 updateScoreboard();
-                saveStateToLocalStorage();
 
                 // WebSocket sync
                 syncStateToServer('UPDATE_CHOMBO', { person, count: chomboCount });
@@ -693,7 +621,6 @@ function updateDisplayedNames() {
               ul.appendChild(li)
             })
             scoreBoard.appendChild(ul)
-            saveStateToLocalStorage()
 
             // WebSocket sync
             syncStateToServer('UPDATE_TEXT_FIELD', { fieldId: inputId, value: currentValue });
@@ -736,7 +663,6 @@ function updateDisplayedNames() {
         finalScores = {};
         calculateValues();
         updateScoreboard();
-        saveStateToLocalStorage();
       });
       
       li.appendChild(chomboInput);
@@ -956,7 +882,6 @@ function renderResults() {
 			  finalScores = {};
 			  calculateValues();
 			  updateScoreboard();
-			  saveStateToLocalStorage();
 
 			  // WebSocket sync
 			  syncStateToServer('UPDATE_CHOMBO', { person, count: chomboCount });
@@ -968,7 +893,6 @@ function renderResults() {
 
 		    // Append the sorted list to the scoreBoard
 		    scoreBoard.appendChild(ul);
-		      saveStateToLocalStorage();
 
 		      // WebSocket sync
 		      syncStateToServer('UPDATE_TEXT_FIELD', { fieldId, value: currentValue });
@@ -1003,7 +927,7 @@ function renderResults() {
         const elapsedSecs = Math.round((Date.now() - startTime) / 100) / 10
         elapsedTime.textContent = `Computed in ${elapsedSecs} seconds.`
       } else {
-        elapsedTime.textContent = `Loaded from local storage.`
+        elapsedTime.textContent = `Loaded from server.`
       }
       
       summaryDiv.appendChild(elapsedTime)
