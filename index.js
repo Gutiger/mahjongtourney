@@ -67,12 +67,13 @@ const myWorker = new Worker('lib/worker.js');
 let finalScores = {}
 let chomboRefs = {}
 
-// WebSocket synchronization flag
+// WebSocket synchronization flags
 let isSyncingFromServer = false;
+let hasReceivedInitialState = false;
 
 // Helper to send state updates
 function syncStateToServer(type, payload) {
-  if (!isSyncingFromServer && typeof wsClient !== 'undefined') {
+  if (!isSyncingFromServer && hasReceivedInitialState && typeof wsClient !== 'undefined') {
     wsClient.send(type, payload);
   }
 }
@@ -210,11 +211,8 @@ function init() {
   onSliderLabelEdited()
   withGroupLeaders = !!controls.withGroupLeadersBox.checked
 
-  if (lastResults) {
-    renderResults()
-  } else {
-    recomputeResults()
-  }
+  // Don't automatically recompute on init - wait for server state first
+  // Server state sync will render results if they exist
 
   // Setup WebSocket synchronization
   setupWebSocketSync();
@@ -267,7 +265,7 @@ function recomputeResults() {
 
   // WebSocket sync - notify all clients tournament is being recomputed
   syncStateToServer('RECOMPUTE_TOURNAMENT', {
-    config: { groups, ofSize, forRounds, withGroupLeaders }
+    config: { groups, ofSize, forRounds, withGroupLeaders, playerNames, forbiddenPairs: forbiddenPairs.toJS(), discouragedGroups: discouragedGroups.toJS() }
   });
 }
 
@@ -283,6 +281,7 @@ function setupWebSocketSync() {
     // If server just started (isEmpty), do nothing - keep current client state
     if (state.isEmpty) {
       console.log('Server has no state yet - keeping current client state');
+      hasReceivedInitialState = true;
       isSyncingFromServer = false;
       return;
     }
@@ -332,6 +331,7 @@ function setupWebSocketSync() {
       updateScoreboard();
     }
 
+    hasReceivedInitialState = true;
     isSyncingFromServer = false;
   });
 
@@ -441,7 +441,21 @@ function setupWebSocketSync() {
 
     // Update config if provided
     if (message.payload.config) {
-      Object.assign({groups, ofSize, forRounds, withGroupLeaders}, message.payload.config);
+      if (message.payload.config.groups !== undefined) groups = message.payload.config.groups;
+      if (message.payload.config.ofSize !== undefined) ofSize = message.payload.config.ofSize;
+      if (message.payload.config.forRounds !== undefined) forRounds = message.payload.config.forRounds;
+      if (message.payload.config.withGroupLeaders !== undefined) withGroupLeaders = message.payload.config.withGroupLeaders;
+      if (message.payload.config.playerNames !== undefined) {
+        playerNames = message.payload.config.playerNames;
+        controls.playerNames.value = playerNames.join('\n');
+      }
+      if (message.payload.config.forbiddenPairs !== undefined) {
+        forbiddenPairs = Immutable.Set(message.payload.config.forbiddenPairs);
+      }
+      if (message.payload.config.discouragedGroups !== undefined) {
+        discouragedGroups = Immutable.Set(message.payload.config.discouragedGroups);
+      }
+
       controls.groupsBox.value = groups;
       controls.ofSizeBox.value = ofSize;
       controls.forRoundsBox.value = forRounds;
