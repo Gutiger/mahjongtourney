@@ -122,11 +122,6 @@ function updateScoreboard() {
 }
 
 function updateScoresImmediately() {
-  finalScores = {};
-  calculateValues();
-  updateScoreboard();
-
-  // WebSocket sync - send current Uma/Oka config
   const okaField = document.getElementById('okaField');
   const uma1Field = document.getElementById('uma1');
   const uma2Field = document.getElementById('uma2');
@@ -135,15 +130,28 @@ function updateScoresImmediately() {
   const startingPointsField = document.getElementById('starting_points');
   const chomboField = document.getElementById('chomboField');
 
-  syncStateToServer('UPDATE_CONFIG', {
-    oka: okaField ? parseFloat(okaField.value) : null,
-    uma1: uma1Field ? parseFloat(uma1Field.value) : null,
-    uma2: uma2Field ? parseFloat(uma2Field.value) : null,
-    uma3: uma3Field ? parseFloat(uma3Field.value) : null,
-    uma4: uma4Field ? parseFloat(uma4Field.value) : null,
-    startingPoints: startingPointsField ? parseFloat(startingPointsField.value) : null,
-    chomboValue: chomboField ? parseFloat(chomboField.value) : null
-  });
+  const oka = okaField ? parseFloat(okaField.value) : null;
+  const uma1 = uma1Field ? parseFloat(uma1Field.value) : null;
+  const uma2 = uma2Field ? parseFloat(uma2Field.value) : null;
+  const uma3 = uma3Field ? parseFloat(uma3Field.value) : null;
+  const uma4 = uma4Field ? parseFloat(uma4Field.value) : null;
+  const startingPoints = startingPointsField ? parseFloat(startingPointsField.value) : null;
+  const chomboValue = chomboField ? parseFloat(chomboField.value) : null;
+
+  // Only update if all non-null values are valid numbers (allows typing "-" without it disappearing)
+  const hasInvalidValue = [oka, uma1, uma2, uma3, uma4, startingPoints, chomboValue]
+    .some(val => val !== null && isNaN(val));
+
+  if (!hasInvalidValue) {
+    finalScores = {};
+    calculateValues();
+    updateScoreboard();
+
+    // WebSocket sync - send current Uma/Oka config
+    syncStateToServer('UPDATE_CONFIG', {
+      oka, uma1, uma2, uma3, uma4, startingPoints, chomboValue
+    });
+  }
 }
 
 // The init() function is called after the DOM is loaded. It prepares
@@ -592,52 +600,53 @@ function updateDisplayedNames() {
           
           // Copy the event listener logic from the original
           newInput.addEventListener('input', () => {
-            finalScores = {}
-            const currentValue = parseFloat(newInput.value) || 0
-            textFieldRefs[inputId] = currentValue
-            calculateValues()
+            const currentValue = parseFloat(newInput.value)
 
-            const scoreBoard = document.getElementById('scoreBoard')
-            scoreBoard.innerHTML = ''
-            const sortedScores = Object.entries(finalScores).sort((a, b) => b[1] - a[1])
-            const ul = document.createElement('ul')
-            sortedScores.forEach(([person, score], index) => {
-              const li = document.createElement('li')
-              li.classList.add('player-item');
-              var personNumberNested = person.replace('person-', '')
-              const place = getOrdinalSuffix(index + 1)
+            // Only update if it's a valid number (allows typing "-" or "1." without it disappearing)
+            if (!isNaN(currentValue)) {
+              finalScores = {}
+              textFieldRefs[inputId] = currentValue
+              calculateValues()
 
-              // Create text node for the placement and score
-              const textNode = document.createTextNode(`${place}:   ${playerName(personNumberNested)}:   ${score.toFixed(2)} `);
-              li.appendChild(textNode);
+              const scoreBoard = document.getElementById('scoreBoard')
+              scoreBoard.innerHTML = ''
+              const sortedScores = Object.entries(finalScores).sort((a, b) => b[1] - a[1])
+              const ul = document.createElement('ul')
+              sortedScores.forEach(([person, score], index) => {
+                const li = document.createElement('li')
+                li.classList.add('player-item');
+                var personNumberNested = person.replace('person-', '')
+                const place = getOrdinalSuffix(index + 1)
 
-              // Create chombo input field
-              const chomboInput = document.createElement('input');
-              chomboInput.type = 'number';
-              chomboInput.min = '0';
-              chomboInput.value = chomboRefs[person] || 0;
-              chomboInput.style.width = '50px';
-              chomboInput.style.marginLeft = '10px';
-              chomboInput.placeholder = 'Chombo';
+                const textNode = document.createTextNode(`${place}:   ${playerName(personNumberNested)}:   ${score.toFixed(2)} `);
+                li.appendChild(textNode);
 
-              chomboInput.addEventListener('input', () => {
-                const chomboCount = parseInt(chomboInput.value) || 0;
-                chomboRefs[person] = chomboCount;
-                finalScores = {};
-                calculateValues();
-                updateScoreboard();
+                const chomboInput = document.createElement('input');
+                chomboInput.type = 'number';
+                chomboInput.min = '0';
+                chomboInput.value = chomboRefs[person] || 0;
+                chomboInput.style.width = '50px';
+                chomboInput.style.marginLeft = '10px';
+                chomboInput.placeholder = 'Chombo';
 
-                // WebSocket sync
-                syncStateToServer('UPDATE_CHOMBO', { person, count: chomboCount });
-              });
+                chomboInput.addEventListener('input', () => {
+                  const chomboCount = parseInt(chomboInput.value) || 0;
+                  chomboRefs[person] = chomboCount;
+                  finalScores = {};
+                  calculateValues();
+                  updateScoreboard();
 
-              li.appendChild(chomboInput);
-              ul.appendChild(li)
-            })
-            scoreBoard.appendChild(ul)
+                  syncStateToServer('UPDATE_CHOMBO', { person, count: chomboCount });
+                });
 
-            // WebSocket sync
-            syncStateToServer('UPDATE_TEXT_FIELD', { fieldId: inputId, value: currentValue });
+                li.appendChild(chomboInput);
+                ul.appendChild(li)
+              })
+              scoreBoard.appendChild(ul)
+
+              // WebSocket sync
+              syncStateToServer('UPDATE_TEXT_FIELD', { fieldId: inputId, value: currentValue });
+            }
           })
           
           member.appendChild(newInput)
@@ -856,61 +865,56 @@ function renderResults() {
 	    }
 
 	      textField.addEventListener('input', () => {
-		      finalScores = {}
-		      const currentValue = parseFloat(textField.value) || 0; // Convert to number or default to 0
-		      textFieldRefs[fieldId] = currentValue; // Set initial value
-		      calculateValues();
+		      const currentValue = parseFloat(textField.value);
 
-		    const scoreBoard = document.getElementById('scoreBoard'); // Get the scoreboard element
-		    scoreBoard.innerHTML = ''; // Clear any previous content
+		      // Only update if it's a valid number (allows typing "-" or "1." without it disappearing)
+		      if (!isNaN(currentValue)) {
+		        finalScores = {}
+		        textFieldRefs[fieldId] = currentValue;
+		        calculateValues();
 
-		    // Convert finalScores object to an array and sort it by score (descending order)
-		    const sortedScores = Object.entries(finalScores).sort((a, b) => b[1] - a[1]);
+		        const scoreBoard = document.getElementById('scoreBoard');
+		        scoreBoard.innerHTML = '';
 
-		    // Create an unordered list to display the sorted scores
-		    const ul = document.createElement('ul');
+		        const sortedScores = Object.entries(finalScores).sort((a, b) => b[1] - a[1]);
+		        const ul = document.createElement('ul');
 
-		    // Iterate over the sortedScores array and create list items
-		    sortedScores.forEach(([person, score], index) => {
-			const li = document.createElement('li');
-			li.classList.add('player-item');
-			var personNumberNested = person.replace('person-', '');
-			const place = getOrdinalSuffix(index + 1);
+		        sortedScores.forEach(([person, score], index) => {
+			  const li = document.createElement('li');
+			  li.classList.add('player-item');
+			  var personNumberNested = person.replace('person-', '');
+			  const place = getOrdinalSuffix(index + 1);
 
-			// Create text node for the placement and score
-			const textNode = document.createTextNode(`${place}:   ${playerName(personNumberNested)}:   ${score.toFixed(2)} `);
-			li.appendChild(textNode);
+			  const textNode = document.createTextNode(`${place}:   ${playerName(personNumberNested)}:   ${score.toFixed(2)} `);
+			  li.appendChild(textNode);
 
-			// Create chombo input field
-			const chomboInput = document.createElement('input');
-			chomboInput.type = 'number';
-			chomboInput.min = '0';
-			chomboInput.value = chomboRefs[person] || 0;
-			chomboInput.style.width = '50px';
-			chomboInput.style.marginLeft = '10px';
-			chomboInput.placeholder = 'Chombo';
+			  const chomboInput = document.createElement('input');
+			  chomboInput.type = 'number';
+			  chomboInput.min = '0';
+			  chomboInput.value = chomboRefs[person] || 0;
+			  chomboInput.style.width = '50px';
+			  chomboInput.style.marginLeft = '10px';
+			  chomboInput.placeholder = 'Chombo';
 
-			chomboInput.addEventListener('input', () => {
-			  const chomboCount = parseInt(chomboInput.value) || 0;
-			  chomboRefs[person] = chomboCount;
-			  finalScores = {};
-			  calculateValues();
-			  updateScoreboard();
+			  chomboInput.addEventListener('input', () => {
+			    const chomboCount = parseInt(chomboInput.value) || 0;
+			    chomboRefs[person] = chomboCount;
+			    finalScores = {};
+			    calculateValues();
+			    updateScoreboard();
 
-			  // WebSocket sync
-			  syncStateToServer('UPDATE_CHOMBO', { person, count: chomboCount });
-			});
+			    syncStateToServer('UPDATE_CHOMBO', { person, count: chomboCount });
+			  });
 
-			li.appendChild(chomboInput);
-			ul.appendChild(li);
-		    });
+			  li.appendChild(chomboInput);
+			  ul.appendChild(li);
+		        });
 
-		    // Append the sorted list to the scoreBoard
-		    scoreBoard.appendChild(ul);
+		        scoreBoard.appendChild(ul);
 
-		      // WebSocket sync
-		      syncStateToServer('UPDATE_TEXT_FIELD', { fieldId, value: currentValue });
-
+		        // WebSocket sync
+		        syncStateToServer('UPDATE_TEXT_FIELD', { fieldId, value: currentValue });
+		      }
 	    });
 
 	  member.appendChild(textField)
