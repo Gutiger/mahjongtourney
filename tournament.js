@@ -78,6 +78,54 @@ function syncStateToServer(type, payload) {
   }
 }
 
+// Check and warn if player count doesn't match
+function checkPlayerCount() {
+  const expectedCount = groups * ofSize;
+  const actualCount = playerNames.filter(name => name.trim() !== '').length;
+
+  let warningDiv = document.getElementById('player-count-warning');
+
+  if (actualCount !== expectedCount) {
+    if (!warningDiv) {
+      warningDiv = document.createElement('div');
+      warningDiv.id = 'player-count-warning';
+      warningDiv.style.cssText = 'color: #b22222; font-weight: bold; margin-top: 5px; padding: 10px; background: #ffe6e6; border-radius: 5px;';
+
+      const textarea = document.getElementById('playerNames');
+      textarea.parentNode.appendChild(warningDiv);
+    }
+    warningDiv.textContent = `Warning: You have ${actualCount} names but need ${expectedCount} players (${groups} groups × ${ofSize} players)`;
+  } else if (warningDiv) {
+    warningDiv.remove();
+  }
+}
+
+// Lock tournament configuration fields (groups, ofSize, forRounds, withGroupLeaders)
+function lockConfigFields() {
+  // Create and display config as plain text
+  if (!document.getElementById('config-display')) {
+    const configDisplay = document.createElement('div');
+    configDisplay.id = 'config-display';
+    configDisplay.style.cssText = 'background: white; padding: 20px; border-radius: 10px; box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1); border: 2px solid #b22222; margin: 20px auto; text-align: center;';
+
+    configDisplay.innerHTML = `
+      <h2 style="color: #b22222; margin-top: 0;">Tournament Configuration</h2>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 500px; margin: 0 auto;">
+        <div><strong>Number of Groups:</strong> ${groups}</div>
+        <div><strong>Players per Group:</strong> ${ofSize}</div>
+        <div><strong>Number of Rounds:</strong> ${forRounds}</div>
+        <div><strong>Require Scorers:</strong> ${withGroupLeaders ? 'Yes' : 'No'}</div>
+      </div>
+    `;
+
+    // Insert after the h1 title
+    const title = document.querySelector('#controls > h1');
+    if (title && title.nextSibling) {
+      title.parentNode.insertBefore(configDisplay, title.nextSibling);
+    }
+  }
+}
+
 const scoreBoard = document.getElementById('scoreBoard');
 
 function updateScoreboard() {
@@ -158,6 +206,14 @@ function updateScoresImmediately() {
 // the application by setting up event handlers and an initial state
 // and calling for an initial solution.
 function init() {
+  // Extract tournament hash from URL
+  const tournamentHash = window.location.hash.substring(1); // Remove the '#' prefix
+  if (!tournamentHash) {
+    alert('No tournament ID found in URL. Please access the tournament via the home page.');
+    window.location.href = '/';
+    return;
+  }
+
   myWorker.addEventListener('message', onResults, false);
 
   controlsDiv = document.getElementById('controls')
@@ -170,27 +226,11 @@ function init() {
   showHelpLink = document.getElementById("show-help-link")
   hideHelpLink = document.getElementById("hide-help-link")
 
-  controls.recomputeButton = controlsDiv.querySelector('#recomputeButton')
-  controls.groupsBox = controlsDiv.querySelector('#groupsBox')
-  controls.groupsSlider = controlsDiv.querySelector('#groupsSlider')
-  controls.ofSizeBox = controlsDiv.querySelector('#ofSizeBox')
-  controls.ofSizeSlider = controlsDiv.querySelector('#ofSizeSlider')
-  controls.forRoundsBox = controlsDiv.querySelector('#forRoundsBox')
-  controls.forRoundsSlider = controlsDiv.querySelector('#forRoundsSlider')
-  controls.withGroupLeadersBox = controlsDiv.querySelector('#withGroupLeadersBox')
   controls.playerNames = controlsDiv.querySelector('#playerNames')
   controls.forbiddenPairs = controlsDiv.querySelector('#forbiddenPairs')
   controls.discouragedGroups = controlsDiv.querySelector('#discouragedGroups')
 
   // User input controls
-  controls.recomputeButton.onclick = recomputeResultsWrapper
-  controls.groupsSlider.oninput = onSliderMoved
-  controls.ofSizeSlider.oninput = onSliderMoved
-  controls.forRoundsSlider.oninput = onSliderMoved
-  controls.withGroupLeadersBox.onchange = onWithGroupLeadersChanged
-  controls.groupsBox.oninput = onSliderLabelEdited
-  controls.ofSizeBox.oninput = onSliderLabelEdited
-  controls.forRoundsBox.oninput = onSliderLabelEdited
   controls.playerNames.onkeyup = onPlayerNamesKeyUp
   controls.playerNames.onchange = onPlayerNamesChanged
   controls.forbiddenPairs.onchange = onForbiddenPairsChanged
@@ -216,14 +256,13 @@ function init() {
 
   playerNames = readPlayerNames()
   readConstraints(playerNames)
-  onSliderLabelEdited()
-  withGroupLeaders = !!controls.withGroupLeadersBox.checked
 
   // Don't automatically recompute on init - wait for server state first
   // Server state sync will render results if they exist
+  // Config values (groups, ofSize, forRounds, withGroupLeaders) will come from server
 
   // Setup WebSocket synchronization
-  setupWebSocketSync();
+  setupWebSocketSync(tournamentHash);
 }
 
 function onResults(e) {
@@ -279,40 +318,28 @@ function recomputeResults() {
 
 
 // Setup WebSocket synchronization
-function setupWebSocketSync() {
+function setupWebSocketSync(tournamentHash) {
   // Handler for full state sync
   wsClient.on('FULL_STATE', (message) => {
     isSyncingFromServer = true;
     const state = message.state;
 
-    // Server state always wins - only apply if server has actual state
-    // If server just started (isEmpty), do nothing - keep current client state
-    if (state.isEmpty) {
-      console.log('Server has no state yet - keeping current client state');
-      hasReceivedInitialState = true;
-      isSyncingFromServer = false;
-      return;
-    }
-
-    // Apply server state
-    console.log('Applying server state');
-    groups = state.groups;
-    ofSize = state.ofSize;
-    forRounds = state.forRounds;
-    withGroupLeaders = state.withGroupLeaders;
-    playerNames = state.playerNames;
-    forbiddenPairs = Immutable.Set(state.forbiddenPairs);
-    discouragedGroups = Immutable.Set(state.discouragedGroups);
+    // Apply server state (config is always present, results may be null if isEmpty=true)
+    console.log('Applying server state, isEmpty:', state.isEmpty);
+    groups = state.config.groups;
+    ofSize = state.config.ofSize;
+    forRounds = state.config.forRounds;
+    withGroupLeaders = state.config.withGroupLeaders;
+    playerNames = state.config.playerNames;
+    forbiddenPairs = Immutable.Set(state.config.forbiddenPairs);
+    discouragedGroups = Immutable.Set(state.config.discouragedGroups);
     lastResults = state.lastResults;
     textFieldRefs = state.textFieldRefs;
     chomboRefs = state.chomboRefs;
 
     // Update UI to reflect state
-    controls.groupsBox.value = groups;
-    controls.ofSizeBox.value = ofSize;
-    controls.forRoundsBox.value = forRounds;
-    controls.withGroupLeadersBox.checked = withGroupLeaders;
     controls.playerNames.value = playerNames.join('\n');
+    checkPlayerCount();
 
     // Update Uma/Oka fields if they exist
     const okaField = document.getElementById('okaField');
@@ -333,11 +360,23 @@ function setupWebSocketSync() {
 
     // Re-render if we have results
     if (lastResults) {
+      console.log('Tournament has results, rendering...');
       renderResults();
       finalScores = {};
       calculateValues();
       updateScoreboard();
+    } else if (state.isEmpty) {
+      // If tournament has never been started, auto-start it
+      console.log('Tournament is empty, auto-starting...');
+      setTimeout(() => {
+        recomputeResults();
+      }, 100);
+    } else {
+      console.log('Tournament has no results but is not empty. State:', state);
     }
+
+    // Lock config fields since tournament config is immutable
+    lockConfigFields();
 
     hasReceivedInitialState = true;
     isSyncingFromServer = false;
@@ -391,12 +430,6 @@ function setupWebSocketSync() {
     if (payload.ofSize !== undefined) ofSize = payload.ofSize;
     if (payload.forRounds !== undefined) forRounds = payload.forRounds;
     if (payload.withGroupLeaders !== undefined) withGroupLeaders = payload.withGroupLeaders;
-
-    // Update UI controls
-    controls.groupsBox.value = groups;
-    controls.ofSizeBox.value = ofSize;
-    controls.forRoundsBox.value = forRounds;
-    controls.withGroupLeadersBox.checked = withGroupLeaders;
 
     // Update Uma/Oka fields if they're in the payload
     const okaField = document.getElementById('okaField');
@@ -463,11 +496,6 @@ function setupWebSocketSync() {
       if (message.payload.config.discouragedGroups !== undefined) {
         discouragedGroups = Immutable.Set(message.payload.config.discouragedGroups);
       }
-
-      controls.groupsBox.value = groups;
-      controls.ofSizeBox.value = ofSize;
-      controls.forRoundsBox.value = forRounds;
-      controls.withGroupLeadersBox.checked = withGroupLeaders;
     }
 
     renderResults();
@@ -482,8 +510,16 @@ function setupWebSocketSync() {
     isSyncingFromServer = false;
   });
 
-  // Connect WebSocket
-  wsClient.connect();
+  // Handler for errors
+  wsClient.on('ERROR', (message) => {
+    alert('Error: ' + message.error);
+    if (message.error === 'Tournament not found') {
+      window.location.href = '/';
+    }
+  });
+
+  // Connect WebSocket with tournament hash
+  wsClient.connect(tournamentHash);
 }
 
 function onSliderMoved() {
@@ -525,31 +561,15 @@ function onWithGroupLeadersChanged() {
 }
 
 function disableControls() {
-  controls.recomputeButton.disabled = true
-  controls.groupsSlider.disabled = true
-  controls.ofSizeSlider.disabled = true
-  controls.forRoundsSlider.disabled = true
-  controls.withGroupLeadersBox.disabled = true;
   controls.playerNames.disabled = true
   controls.forbiddenPairs.disabled = true
   controls.discouragedGroups.disabled = true
-  
-  // Show spinner
-  controls.recomputeButton.innerHTML = '&nbsp;<span class="spinner"></span>'
 }
 
 function enableControls() {
-  controls.recomputeButton.disabled = false
-  controls.groupsSlider.disabled = false
-  controls.ofSizeSlider.disabled = false
-  controls.forRoundsSlider.disabled = false
-  controls.withGroupLeadersBox.disabled = false
   controls.playerNames.disabled = false
   controls.forbiddenPairs.disabled = false
   controls.discouragedGroups.disabled = false
-  
-  // Hide spinner
-  controls.recomputeButton.innerHTML = 'Start Tournament!'
 }
 
 function readPlayerNames() {
@@ -561,6 +581,7 @@ function readPlayerNames() {
 function onPlayerNamesKeyUp() {
   playerNames = readPlayerNames()
   updateDisplayedNames()
+  checkPlayerCount()
 }
 
 function updateDisplayedNames() {
@@ -698,6 +719,7 @@ function updateDisplayedNames() {
 function onPlayerNamesChanged() {
   playerNames = readPlayerNames()
   readConstraints(playerNames);
+  checkPlayerCount();
   //renderResults()
 
   // WebSocket sync

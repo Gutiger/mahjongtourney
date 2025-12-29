@@ -7,9 +7,11 @@ class WebSocketClient {
     this.reconnectDelay = 1000;
     this.messageHandlers = new Map();
     this.isReconnecting = false;
+    this.tournamentHash = null;
   }
 
-  connect() {
+  connect(tournamentHash) {
+    this.tournamentHash = tournamentHash;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}`;
 
@@ -20,6 +22,11 @@ class WebSocketClient {
       this.reconnectAttempts = 0;
       this.isReconnecting = false;
       this.showConnectionStatus(true);
+
+      // Join the tournament room
+      if (this.tournamentHash) {
+        this.send('JOIN_TOURNAMENT', { hash: this.tournamentHash });
+      }
     };
 
     this.ws.onmessage = (event) => {

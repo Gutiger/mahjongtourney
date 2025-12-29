@@ -7,6 +7,9 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
+// Enable JSON parsing
+app.use(express.json());
+
 // Serve static files
 app.use(express.static(path.join(__dirname)));
 
@@ -15,52 +18,76 @@ app.get('/trophy', (req, res) => {
   res.sendFile(path.join(__dirname, 'trophy', 'index.html'));
 });
 
-// Server-side state (authoritative)
-let serverState = {
-  // Tournament configuration
-  groups: 3,
-  ofSize: 4,
-  forRounds: 3,
-  withGroupLeaders: false,
-  playerNames: [],
-  forbiddenPairs: [],
-  discouragedGroups: [],
+// Store tournaments by hash
+const tournaments = new Map();
 
-  // Tournament results
-  lastResults: null,
+// API endpoint to create tournament
+app.post('/api/tournament', (req, res) => {
+  const { hash, config } = req.body;
 
-  // Scoring state
-  textFieldRefs: {},
-  chomboRefs: {},
+  if (!hash || !config) {
+    return res.status(400).json({ error: 'Hash and config required' });
+  }
 
-  // Uma/Oka config
-  oka: null,
-  uma1: null,
-  uma2: null,
-  uma3: null,
-  uma4: null,
-  startingPoints: null,
-  chomboValue: null,
+  if (tournaments.has(hash)) {
+    return res.status(409).json({ error: 'Tournament ID already exists' });
+  }
 
-  // Metadata
-  lastUpdated: Date.now(),
-  version: 0,  // Increment on each change for optimistic locking
-  isEmpty: true  // Track if state has been initialized
-};
+  // Generate default player names based on number of players
+  const groups = config.groups || 3;
+  const ofSize = config.ofSize || 4;
+  const numPlayers = groups * ofSize;
+  const defaultPlayerNames = Array.from({ length: numPlayers }, (_, i) => `Player ${i + 1}`);
 
-// Connected clients
-const clients = new Set();
+  // Create new tournament state
+  tournaments.set(hash, {
+    config: {
+      groups: groups,
+      ofSize: ofSize,
+      forRounds: config.forRounds || 3,
+      withGroupLeaders: config.withGroupLeaders || false,
+      playerNames: defaultPlayerNames,
+      forbiddenPairs: [],
+      discouragedGroups: [],
+    },
+    lastResults: null,
+    textFieldRefs: {},
+    chomboRefs: {},
+    oka: null,
+    uma1: null,
+    uma2: null,
+    uma3: null,
+    uma4: null,
+    startingPoints: null,
+    chomboValue: null,
+    lastUpdated: Date.now(),
+    version: 0,
+    isEmpty: true,
+    locked: true, // Config is locked after creation
+    clients: new Set()
+  });
+
+  console.log(`Created tournament: ${hash}`);
+  res.json({ success: true, hash });
+});
+
+// API endpoint to get tournament
+app.get('/api/tournament/:hash', (req, res) => {
+  const { hash } = req.params;
+  const tournament = tournaments.get(hash);
+
+  if (!tournament) {
+    return res.status(404).json({ error: 'Tournament not found' });
+  }
+
+  const { clients, ...tournamentData } = tournament;
+  res.json(tournamentData);
+});
 
 // WebSocket connection handler
 wss.on('connection', (ws) => {
-  console.log('Client connected. Total clients:', clients.size + 1);
-  clients.add(ws);
-
-  // Send full state to newly connected client
-  ws.send(JSON.stringify({
-    type: 'FULL_STATE',
-    state: serverState
-  }));
+  console.log('Client connected');
+  ws.tournamentHash = null; // Will be set when client joins a tournament
 
   ws.on('message', (message) => {
     try {
@@ -72,13 +99,23 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
-    console.log('Client disconnected. Total clients:', clients.size - 1);
-    clients.delete(ws);
+    if (ws.tournamentHash) {
+      const tournament = tournaments.get(ws.tournamentHash);
+      if (tournament) {
+        tournament.clients.delete(ws);
+        console.log(`Client left tournament ${ws.tournamentHash}. Remaining: ${tournament.clients.size}`);
+      }
+    }
   });
 
   ws.on('error', (error) => {
     console.error('WebSocket error:', error);
-    clients.delete(ws);
+    if (ws.tournamentHash) {
+      const tournament = tournaments.get(ws.tournamentHash);
+      if (tournament) {
+        tournament.clients.delete(ws);
+      }
+    }
   });
 });
 
@@ -86,58 +123,109 @@ wss.on('connection', (ws) => {
 function handleClientMessage(ws, data) {
   const { type, payload } = data;
 
+  // Handle JOIN_TOURNAMENT first
+  if (type === 'JOIN_TOURNAMENT') {
+    const { hash } = payload;
+    const tournament = tournaments.get(hash);
+
+    if (!tournament) {
+      ws.send(JSON.stringify({
+        type: 'ERROR',
+        error: 'Tournament not found'
+      }));
+      return;
+    }
+
+    ws.tournamentHash = hash;
+    tournament.clients.add(ws);
+    console.log(`Client joined tournament ${hash}. Total clients: ${tournament.clients.size}`);
+
+    // Send full state to newly connected client
+    const { clients, ...state } = tournament;
+    ws.send(JSON.stringify({
+      type: 'FULL_STATE',
+      state
+    }));
+    return;
+  }
+
+  // All other messages require the client to be in a tournament
+  if (!ws.tournamentHash) {
+    ws.send(JSON.stringify({
+      type: 'ERROR',
+      error: 'Must join a tournament first'
+    }));
+    return;
+  }
+
+  const tournament = tournaments.get(ws.tournamentHash);
+  if (!tournament) {
+    ws.send(JSON.stringify({
+      type: 'ERROR',
+      error: 'Tournament not found'
+    }));
+    return;
+  }
+
   switch (type) {
     case 'UPDATE_TEXT_FIELD':
-      serverState.textFieldRefs[payload.fieldId] = payload.value;
-      serverState.version++;
-      serverState.isEmpty = false;
-      broadcastStateChange('TEXT_FIELD_UPDATED', payload);
+      tournament.textFieldRefs[payload.fieldId] = payload.value;
+      tournament.version++;
+      tournament.isEmpty = false;
+      broadcastToTournament(tournament, 'TEXT_FIELD_UPDATED', payload);
       break;
 
     case 'UPDATE_CHOMBO':
-      serverState.chomboRefs[payload.person] = payload.count;
-      serverState.version++;
-      serverState.isEmpty = false;
-      broadcastStateChange('CHOMBO_UPDATED', payload);
+      tournament.chomboRefs[payload.person] = payload.count;
+      tournament.version++;
+      tournament.isEmpty = false;
+      broadcastToTournament(tournament, 'CHOMBO_UPDATED', payload);
       break;
 
     case 'UPDATE_CONFIG':
-      Object.assign(serverState, payload);
-      serverState.version++;
-      serverState.isEmpty = false;
-      broadcastStateChange('CONFIG_UPDATED', payload);
+      // Don't allow changing locked config (groups, ofSize, forRounds, withGroupLeaders)
+      const { groups, ofSize, forRounds, withGroupLeaders, ...allowedConfig } = payload;
+      Object.assign(tournament, allowedConfig);
+      tournament.version++;
+      tournament.isEmpty = false;
+      broadcastToTournament(tournament, 'CONFIG_UPDATED', payload);
       break;
 
     case 'UPDATE_PLAYER_NAMES':
-      serverState.playerNames = payload.playerNames;
-      serverState.version++;
-      serverState.isEmpty = false;
-      broadcastStateChange('PLAYER_NAMES_UPDATED', payload);
+      tournament.config.playerNames = payload.playerNames;
+      tournament.version++;
+      tournament.isEmpty = false;
+      broadcastToTournament(tournament, 'PLAYER_NAMES_UPDATED', payload);
       break;
 
     case 'RECOMPUTE_TOURNAMENT':
-      serverState.lastResults = null;
-      serverState.textFieldRefs = {};
-      serverState.chomboRefs = {};
+      tournament.lastResults = null;
+      tournament.textFieldRefs = {};
+      tournament.chomboRefs = {};
       if (payload.config) {
-        Object.assign(serverState, payload.config);
+        // Update allowed config fields
+        const { playerNames, forbiddenPairs, discouragedGroups } = payload.config;
+        if (playerNames) tournament.config.playerNames = playerNames;
+        if (forbiddenPairs) tournament.config.forbiddenPairs = forbiddenPairs;
+        if (discouragedGroups) tournament.config.discouragedGroups = discouragedGroups;
       }
-      serverState.version++;
-      serverState.isEmpty = false;
-      broadcastStateChange('TOURNAMENT_RECOMPUTED', payload);
+      tournament.version++;
+      tournament.isEmpty = false;
+      broadcastToTournament(tournament, 'TOURNAMENT_RECOMPUTED', payload);
       break;
 
     case 'UPDATE_RESULTS':
-      serverState.lastResults = payload.results;
-      serverState.version++;
-      serverState.isEmpty = false;
-      broadcastStateChange('RESULTS_UPDATED', payload);
+      tournament.lastResults = payload.results;
+      tournament.version++;
+      tournament.isEmpty = false;
+      broadcastToTournament(tournament, 'RESULTS_UPDATED', payload);
       break;
 
     case 'REQUEST_FULL_STATE':
+      const { clients, ...state } = tournament;
       ws.send(JSON.stringify({
         type: 'FULL_STATE',
-        state: serverState
+        state
       }));
       break;
 
@@ -145,19 +233,19 @@ function handleClientMessage(ws, data) {
       console.warn('Unknown message type:', type);
   }
 
-  serverState.lastUpdated = Date.now();
+  tournament.lastUpdated = Date.now();
 }
 
-// Broadcast state changes to all connected clients
-function broadcastStateChange(type, payload) {
+// Broadcast state changes to all clients in a tournament
+function broadcastToTournament(tournament, type, payload) {
   const message = JSON.stringify({
     type,
     payload,
-    version: serverState.version,
+    version: tournament.version,
     timestamp: Date.now()
   });
 
-  clients.forEach((client) => {
+  tournament.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(message);
     }

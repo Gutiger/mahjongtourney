@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Julian's Mahjong Tournament Organizer</title>
+
+    <link rel="stylesheet" href="index.css"/>
+    <script src="https://cdn.jsdelivr.net/npm/immutable@3.8.2/dist/immutable.min.js"></script>
+    <script src="websocket-client.js" type="text/javascript"></script>
+    <script src="tournament.js" type="text/javascript"></script>
+
+    <style>
+        .uma-container {
+            display: flex; /* Flexbox to arrange Uma's fields in a row */
+            gap: 5px; /* Space between the fields */
+        }
+
+        .small-input {
+            width: 40px; /* Small width for Uma's fields */
+        }
+        /* Container for each player (li element) */
+        li.player-item {
+            display: flex;
+            justify-content: space-between;  /* Ensures the name and input field are spaced */
+            width: 300px; /* Total width you want for name + input */
+            padding: 5px;
+        }
+
+        /* Ensures the text field is sized dynamically within the given width */
+        li.player-item input {
+            width: 100px; /* Adjust this to control input field width */
+            flex-shrink: 0; /* Prevents shrinking beyond this width */
+        }
+
+        /* Optionally, you can style the player's name for better appearance */
+        li.player-item span {
+            white-space: nowrap; /* Prevents the name from wrapping */
+            overflow: hidden;
+            text-overflow: ellipsis; /* Adds '...' if the name is too long */
+        }
+	/* General Page Styling */
+body {
+    font-family: 'Trebuchet MS', sans-serif;
+    background-color: #e0efe7; /* Light green Mahjong table color */
+    margin: 0;
+    padding: 20px;
+    color: #333;
+}
+
+/* Title Styling */
+h1 {
+    font-size: 2em;
+    text-align: center;
+    color: #b22222; /* Rich red */
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    margin-bottom: 20px;
+}
+
+/* Subtitle Text */
+h2 {
+    font-size: 1.6em;
+    color: #b22222;
+    margin-top: 20px;
+    text-align: left;
+    border-bottom: 2px solid #b22222;
+    padding-bottom: 5px;
+}
+
+/* Scoreboard and Conflict Score */
+#scoreBoard, .conflict-score {
+    background-color: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+    border: 2px solid #b22222;
+    margin: 20px auto;
+}
+
+.conflict-score {
+    text-align: right;
+    font-size: 1.2em;
+    margin-right: 10px;
+    color: #b22222;
+    font-weight: bold;
+}
+
+/* Player Fields */
+.player-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #b22222;
+    margin-bottom: 5px;
+}
+
+.player-item:last-child {
+    border-bottom: none;
+}
+
+.player-item input {
+    width: 100px;
+    padding: 5px;
+    font-size: 1.2em;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    text-align: right;
+    background-color: #f9f9f9;
+}
+
+.oka-uma-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.oka-uma-row div {
+    text-align: center;
+}
+
+/* Starting Points, Oka, Uma, and Chombo Fields */
+#starting_points, #okaField, #uma1, #uma2, #uma3, #uma4, #chomboField, #forRoundsBox, #groupsBox, #ofSizeBox, #withGroupLeadersBox {
+    width: 80px;
+    margin: 10px;
+    padding: 10px;
+    border: 2px solid #b22222;
+    border-radius: 5px;
+    font-size: 1.2em;
+    background-color: #fff;
+    text-align: center;
+    color: #333;
+}
+
+#okaField, #uma1, #uma2, #uma3, #uma4, #chomboField {
+    margin: 5px;
+}
+
+/* Button Styling */
+button {
+    background-color: #006400; /* Dark green */
+    color: white;
+    padding: 15px 25px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1.2em;
+    margin: 20px 0;
+    width: 100%;
+}
+
+button:hover {
+    background-color: #228b22;
+    transition: background-color 0.3s ease-in-out;
+}
+
+/* Player Names Box */
+#playerNames {
+    width: 100%;
+    padding: 10px;
+    border: 2px solid #b22222;
+    border-radius: 5px;
+    font-size: 1.2em;
+    margin-bottom: 15px;
+    color: #333;
+    height: 150px;
+}
+
+input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 10px;
+    background: #b22222;
+    outline: none;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+    margin-bottom: 10px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    border: 2px solid #006400;
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    border: 2px solid #006400;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover,
+input[type="range"]::-moz-range-thumb:hover {
+    background-color: #228b22;
+}
+
+/* Labels and Spacing */
+
+label {
+    font-size: 1.2em;
+    margin-right: 10px;
+    color: #b22222;
+    display: inline-block;
+    width: 180px; /* Adjust width for consistent alignment */
+}
+
+.slider-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+/* Ensure the slider itself takes up enough width */
+input[type="range"] {
+    -webkit-appearance: none;
+    height: 10px;
+    background: #b22222;
+    outline: none;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+input[type="number"] {
+    font-size: 1.2em;
+    padding: 5px;
+    border-radius: 5px;
+    margin-bottom: 10px;
+    width: 60px;
+}
+
+/* Responsive Design */
+@media (max-width: 800px) {
+
+    button {
+        padding: 10px 15px;
+        font-size: 1em;
+    }
+
+    .player-item input {
+        width: 70px;
+    }
+}
+
+	/* Compact the layout */
+.compact-slider-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+/* Compact label */
+.compact-slider-row label {
+    font-size: 1.1em;
+    margin-right: 10px;
+    width: 150px;
+    text-align: right;
+}
+
+/* Make sliders smaller */
+.compact-slider-row input[type="range"] {
+    -webkit-appearance: none;
+    width: 150px;
+    height: 8px;
+    background: #b22222;
+    outline: none;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+/* Consistent Input Styles */
+input[type="number"], input[type="text"] {
+    padding: 5px;
+    font-size: 1.1em;
+    width: 50px; /* Keep input width smaller */
+    border: 2px solid #b22222;
+    border-radius: 3px;
+}
+
+/* Compact the entire section */
+#input-section {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+}
+
+/* Small tweaks for space around the Recompute button */
+#recompute-button {
+    margin: 20px 0;
+}
+
+/* Adjust the uma section */
+.uma-row input[type="text"] {
+    width: 45px;
+}
+
+
+.compact-slider-table {
+    width: 95%;
+}
+
+.compact-slider-table th {
+    text-align: left;
+    padding-right: 5px;
+        padding-left: 30px;
+    white-space: nowrap;
+}
+
+
+.compact-input {
+    width: 40px;
+    text-align: center;
+    border: 1px solid red;
+    border-radius: 4px;
+}
+
+.compact-slider {
+    margin-top: 15px;
+}
+
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 8px;
+    background: #ddd;
+    border-radius: 5px;
+    outline: none;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #c21f1f;
+    cursor: pointer;
+}
+
+
+    </style>
+
+</head>
+<body>
+    <div id="controls">
+        <h1>Julian's Mahjong Tournament Organizer</h1>
+        <div>
+	        <!-- Static text fields for Oka and Uma -->
+<div class="oka-uma-row">
+    <div>
+        <label>Starting points:</label>
+                </br>
+        <input type="text" id="starting_points" value="25000">
+    </div>
+
+    <div>
+        <label>Oka (per person):</label>
+		</br>
+        <input type="text" id="okaField" value="5000">
+    </div>
+
+    <div>
+        <label>Uma:</label>
+        <div class="uma-container">
+            <input type="text" class="small-input" id="uma1" value="15">
+            <input type="text" class="small-input" id="uma2" value="5">
+            <input type="text" class="small-input" id="uma3" value="-5">
+            <input type="text" class="small-input" id="uma4" value="-15">
+        </div>
+    </div>
+
+    <div>
+        <label>Chombo:</label>
+        </br>
+        <input type="text" id="chomboField" value="-10">
+    </div>
+</div>
+		</br>
+	    <div>
+                <strong>Player Names</strong>
+            </div>
+            <div class="help-text">
+                Player names can be provided for convenience.
+                <br />If player names are omitted, players will be numbered.
+                <br />Editing player names will update the current solution in
+                real-time; you don't need to click "Recompute."
+                <br />&nbsp;
+                <br /><strong>Privacy:</strong> Names are never sent to our
+                servers. All processing happens on your own computer.
+                <br />&nbsp;
+                <br />If two players have the same name, additional constraints
+                (below) will apply to both of them.
+                <br />&nbsp;
+                <br />Tip: To produce mostly-even groups with an uneven number
+                of players, create players named <tt>[Empty]</tt> to round out
+                your roster, and add an <tt>[Empty],[Empty]</tt> constraint
+                in the next box.
+            </div>
+            <div>
+                <textarea id="playerNames" rows="13">
+Allison
+Brad
+Charlie
+Daniel
+Edward
+Fred
+George
+Harriet
+Ivan
+Jenny
+Karen
+Laura
+</textarea>
+            </div>
+        </div>
+        <div style="display: none;">
+            <div>
+                <strong>Never allow these pairs</strong>
+            </div>
+            <div class="help-text">
+                Players grouped in this box are never grouped by the solver
+                unless absolutely necessary.
+                <br />Comma-separate names within a group.
+                <br />Put groups on separate lines.
+            </div>
+            <div>
+                <textarea id="forbiddenPairs" rows="6">
+Brad, Danielle
+[Empty], [Empty]
+</textarea>
+            </div>
+        </div>
+        <div style="display: none;">
+            <div>
+                <strong>Prefer splitting these groups</strong>
+            </div>
+            <div class="help-text">
+                Similar to above, but lower priority.
+                The solver avoids grouping players if they're already
+                grouped here, but reducing repeat encounters can take
+                priority in later rounds.
+                <br />Tip: You can encourage the solver to gender-balance
+                groups by listing all players of one gender in a group here.
+            </div>
+            <div>
+                <textarea id="discouragedGroups" rows="6">
+Brad,Ivan,Mona,Stan
+</textarea>
+            </div>
+        </div>
+        <div>
+            <div class="help-text">
+                The <strong>conflict score</strong> is a representation of how
+                far the solution is from perfect - lower is better.
+                <br />The <strong>Download CSV</strong> button provides a pivot
+                view of the solution that makes it easier see the sequence of
+                groups for a given player.
+                <br />&nbsp;
+                <br /><a href="javascript:hideHelp()">Close help.</a>
+            </div>
+        </div>
+        <p>
+	                <strong>Standings</strong>
+
+	<!--<button id="calculateButton">Calculate</button>-->
+	<div id="scoreBoard"></div> <!-- This will display the sorted finalScores -->
+        </p>
+        <p>
+        </p>
+        <p>
+        </p>
+    </div>
+    <div id="results">
+
+    </div>
+</body>
+</html>
