@@ -45,7 +45,6 @@ app.post('/api/tournament', (req, res) => {
       groups: groups,
       ofSize: ofSize,
       forRounds: config.forRounds || 3,
-      withGroupLeaders: config.withGroupLeaders || false,
       playerNames: defaultPlayerNames,
       forbiddenPairs: [],
       discouragedGroups: [],
@@ -183,8 +182,8 @@ function handleClientMessage(ws, data) {
       break;
 
     case 'UPDATE_CONFIG':
-      // Don't allow changing locked config (groups, ofSize, forRounds, withGroupLeaders)
-      const { groups, ofSize, forRounds, withGroupLeaders, ...allowedConfig } = payload;
+      // Don't allow changing locked config (groups, ofSize, forRounds)
+      const { groups, ofSize, forRounds, ...allowedConfig } = payload;
       Object.assign(tournament, allowedConfig);
       tournament.version++;
       tournament.isEmpty = false;

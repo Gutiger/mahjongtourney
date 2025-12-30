@@ -39,7 +39,6 @@ let helpDivs, showHelpLink, hideHelpLink
 let groups = 0
 let ofSize = 0
 let forRounds = 0
-let withGroupLeaders = false
 let playerNames = []
 let windNames = ["East", "South", "West", "North"]
 let textFieldRefs = {}
@@ -100,7 +99,7 @@ function checkPlayerCount() {
   }
 }
 
-// Lock tournament configuration fields (groups, ofSize, forRounds, withGroupLeaders)
+// Lock tournament configuration fields (groups, ofSize, forRounds)
 function lockConfigFields() {
   // Create and display config as plain text
   if (!document.getElementById('config-display')) {
@@ -109,12 +108,11 @@ function lockConfigFields() {
     configDisplay.style.cssText = 'background: white; padding: 20px; border-radius: 10px; box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1); border: 2px solid #b22222; margin: 20px auto; text-align: center;';
 
     configDisplay.innerHTML = `
-      <h2 style="color: #b22222; margin-top: 0;">Tournament Configuration</h2>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 500px; margin: 0 auto;">
+      <h2 style="color: #b22222; margin-top: 0; margin-bottom: 20px; text-align: center;">Tournament Configuration</h2>
+      <div style="display: flex; gap: 20px; justify-content: center;">
         <div><strong>Number of Groups:</strong> ${groups}</div>
         <div><strong>Players per Group:</strong> ${ofSize}</div>
         <div><strong>Number of Rounds:</strong> ${forRounds}</div>
-        <div><strong>Require Scorers:</strong> ${withGroupLeaders ? 'Yes' : 'No'}</div>
       </div>
     `;
 
@@ -259,7 +257,7 @@ function init() {
 
   // Don't automatically recompute on init - wait for server state first
   // Server state sync will render results if they exist
-  // Config values (groups, ofSize, forRounds, withGroupLeaders) will come from server
+  // Config values (groups, ofSize, forRounds) will come from server
 
   // Setup WebSocket synchronization
   setupWebSocketSync(tournamentHash);
@@ -308,11 +306,11 @@ function recomputeResults() {
   textFieldRefs = {}
   renderResults()
   disableControls()
-  myWorker.postMessage({groups, ofSize, forRounds, withGroupLeaders, forbiddenPairs: forbiddenPairs.toJS(), discouragedGroups: discouragedGroups.toJS()})
+  myWorker.postMessage({groups, ofSize, forRounds, forbiddenPairs: forbiddenPairs.toJS(), discouragedGroups: discouragedGroups.toJS()})
 
   // WebSocket sync - notify all clients tournament is being recomputed
   syncStateToServer('RECOMPUTE_TOURNAMENT', {
-    config: { groups, ofSize, forRounds, withGroupLeaders, playerNames, forbiddenPairs: forbiddenPairs.toJS(), discouragedGroups: discouragedGroups.toJS() }
+    config: { groups, ofSize, forRounds, playerNames, forbiddenPairs: forbiddenPairs.toJS(), discouragedGroups: discouragedGroups.toJS() }
   });
 }
 
@@ -329,7 +327,6 @@ function setupWebSocketSync(tournamentHash) {
     groups = state.config.groups;
     ofSize = state.config.ofSize;
     forRounds = state.config.forRounds;
-    withGroupLeaders = state.config.withGroupLeaders;
     playerNames = state.config.playerNames;
     forbiddenPairs = Immutable.Set(state.config.forbiddenPairs);
     discouragedGroups = Immutable.Set(state.config.discouragedGroups);
@@ -429,7 +426,6 @@ function setupWebSocketSync(tournamentHash) {
     if (payload.groups !== undefined) groups = payload.groups;
     if (payload.ofSize !== undefined) ofSize = payload.ofSize;
     if (payload.forRounds !== undefined) forRounds = payload.forRounds;
-    if (payload.withGroupLeaders !== undefined) withGroupLeaders = payload.withGroupLeaders;
 
     // Update Uma/Oka fields if they're in the payload
     const okaField = document.getElementById('okaField');
@@ -485,7 +481,6 @@ function setupWebSocketSync(tournamentHash) {
       if (message.payload.config.groups !== undefined) groups = message.payload.config.groups;
       if (message.payload.config.ofSize !== undefined) ofSize = message.payload.config.ofSize;
       if (message.payload.config.forRounds !== undefined) forRounds = message.payload.config.forRounds;
-      if (message.payload.config.withGroupLeaders !== undefined) withGroupLeaders = message.payload.config.withGroupLeaders;
       if (message.payload.config.playerNames !== undefined) {
         playerNames = message.payload.config.playerNames;
         controls.playerNames.value = playerNames.join('\n');
@@ -551,13 +546,6 @@ function onSliderLabelEdited() {
 
   // WebSocket sync
   syncStateToServer('UPDATE_CONFIG', { groups, ofSize, forRounds });
-}
-
-function onWithGroupLeadersChanged() {
-  withGroupLeaders = controls.withGroupLeadersBox.checked
-
-  // WebSocket sync
-  syncStateToServer('UPDATE_CONFIG', { withGroupLeaders });
 }
 
 function disableControls() {
