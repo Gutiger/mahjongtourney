@@ -18,6 +18,11 @@ app.get('/trophy', (req, res) => {
   res.sendFile(path.join(__dirname, 'trophy', 'index.html'));
 });
 
+// Serve timer page at /timer
+app.get('/timer', (req, res) => {
+  res.sendFile(path.join(__dirname, 'timer', 'index.html'));
+});
+
 // Store tournaments by hash
 const tournaments = new Map();
 
@@ -63,7 +68,8 @@ app.post('/api/tournament', (req, res) => {
     version: 0,
     isEmpty: true,
     locked: true, // Config is locked after creation
-    clients: new Set()
+    clients: new Set(),
+    timers: new Map() // Store timer states by timerId
   });
 
   console.log(`Created tournament: ${hash}`);
@@ -102,6 +108,14 @@ wss.on('connection', (ws) => {
       const tournament = tournaments.get(ws.tournamentHash);
       if (tournament) {
         tournament.clients.delete(ws);
+
+        // Clean up from timer if subscribed
+        if (ws.timerId && tournament.timers.has(ws.timerId)) {
+          const timer = tournament.timers.get(ws.timerId);
+          timer.clients.delete(ws);
+          console.log(`Client left timer ${ws.timerId}`);
+        }
+
         console.log(`Client left tournament ${ws.tournamentHash}. Remaining: ${tournament.clients.size}`);
       }
     }
@@ -117,6 +131,38 @@ wss.on('connection', (ws) => {
     }
   });
 });
+
+// Helper function to get or create a timer lazily
+function getOrCreateTimer(tournament, timerId) {
+  if (!tournament.timers.has(timerId)) {
+    tournament.timers.set(timerId, {
+      timerId,
+      isRunning: false,
+      startTime: 0,
+      duration: 0,
+      endTime: 0,
+      pausedTime: 0,
+      clients: new Set()
+    });
+    console.log(`Created timer: ${timerId}`);
+  }
+  return tournament.timers.get(timerId);
+}
+
+// Broadcast timer updates to all clients subscribed to that timer
+function broadcastToTimer(timer, type, payload) {
+  const message = JSON.stringify({
+    type,
+    payload: { ...payload, timerId: timer.timerId },
+    timestamp: Date.now()
+  });
+
+  timer.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  });
+}
 
 // Handle incoming messages from clients
 function handleClientMessage(ws, data) {
@@ -145,6 +191,39 @@ function handleClientMessage(ws, data) {
       type: 'FULL_STATE',
       state
     }));
+    return;
+  }
+
+  // Handle JOIN_TIMER for timer clients
+  if (type === 'JOIN_TIMER') {
+    const { hash, timerId } = payload;
+    const tournament = tournaments.get(hash);
+    if (!tournament) {
+      ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'Tournament not found' } }));
+      return;
+    }
+
+    const timer = getOrCreateTimer(tournament, timerId);
+    timer.clients.add(ws);
+    ws.tournamentHash = hash;
+    ws.timerId = timerId;
+
+    // Send current timer state
+    const timeLeft = timer.isRunning
+      ? Math.max(0, timer.endTime - Date.now())
+      : timer.pausedTime;
+
+    ws.send(JSON.stringify({
+      type: 'TIMER_SYNC',
+      payload: {
+        timerId,
+        isRunning: timer.isRunning,
+        endTime: timer.endTime,
+        timeLeft,
+        duration: timer.duration
+      }
+    }));
+    console.log(`Client joined timer: ${hash}/${timerId}`);
     return;
   }
 
@@ -227,6 +306,63 @@ function handleClientMessage(ws, data) {
         state
       }));
       break;
+
+    case 'TIMER_START': {
+      const { timerId, duration } = payload;
+      const timer = getOrCreateTimer(tournament, timerId);
+      const now = Date.now();
+      timer.isRunning = true;
+      timer.startTime = now;
+      timer.duration = duration * 1000;
+      timer.endTime = now + timer.duration;
+      timer.pausedTime = 0;
+
+      broadcastToTimer(timer, 'TIMER_STARTED', { endTime: timer.endTime });
+      console.log(`Timer started: ${timerId}, duration: ${duration}s`);
+      break;
+    }
+
+    case 'TIMER_PAUSE': {
+      const { timerId } = payload;
+      const timer = tournament.timers.get(timerId);
+      if (timer && timer.isRunning) {
+        timer.isRunning = false;
+        timer.pausedTime = Math.max(0, timer.endTime - Date.now());
+
+        broadcastToTimer(timer, 'TIMER_PAUSED', { timeLeft: timer.pausedTime });
+        console.log(`Timer paused: ${timerId}, timeLeft: ${timer.pausedTime}ms`);
+      }
+      break;
+    }
+
+    case 'TIMER_RESUME': {
+      const { timerId } = payload;
+      const timer = tournament.timers.get(timerId);
+      if (timer && !timer.isRunning && timer.pausedTime > 0) {
+        timer.isRunning = true;
+        timer.endTime = Date.now() + timer.pausedTime;
+        timer.pausedTime = 0;
+
+        broadcastToTimer(timer, 'TIMER_STARTED', { endTime: timer.endTime });
+        console.log(`Timer resumed: ${timerId}`);
+      }
+      break;
+    }
+
+    case 'TIMER_RESET': {
+      const { timerId } = payload;
+      const timer = tournament.timers.get(timerId);
+      if (timer) {
+        timer.isRunning = false;
+        timer.startTime = 0;
+        timer.endTime = 0;
+        timer.pausedTime = 0;
+
+        broadcastToTimer(timer, 'TIMER_RESET', {});
+        console.log(`Timer reset: ${timerId}`);
+      }
+      break;
+    }
 
     default:
       console.warn('Unknown message type:', type);

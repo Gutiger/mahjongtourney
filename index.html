@@ -393,6 +393,7 @@ Brad,Ivan,Mona,Stan
         <p>
         </p>
     </div>
+
     <div id="results">
 
     </div>
@@ -405,7 +406,14 @@ Brad,Ivan,Mona,Stan
 
     function route() {
         const hash = window.location.hash.substring(1);
+        const parts = hash.split('/');
         const homeCss = document.getElementById('home-css');
+
+        // Check if this is a timer route
+        if (parts.length >= 3 && parts[1] === 'timer') {
+            window.location.href = '/timer' + window.location.hash;
+            return;
+        }
 
         if (hash) {
             // Check if we're switching from one tournament to another

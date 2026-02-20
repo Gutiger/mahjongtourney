@@ -114,12 +114,25 @@ function lockConfigFields() {
         <div><strong>Players per Group:</strong> ${ofSize}</div>
         <div><strong>Number of Rounds:</strong> ${forRounds}</div>
       </div>
+      <div style="margin-top: 20px; text-align: center;">
+        <button id="tournament-timer-btn" class="tournament-timer-button">⏱️ Open Tournament Timer</button>
+      </div>
     `;
 
     // Insert after the h1 title
     const title = document.querySelector('#controls > h1');
     if (title && title.nextSibling) {
       title.parentNode.insertBefore(configDisplay, title.nextSibling);
+    }
+
+    // Add click handler for tournament timer button
+    const tournamentTimerBtn = document.getElementById('tournament-timer-btn');
+    if (tournamentTimerBtn) {
+      tournamentTimerBtn.onclick = () => {
+        const tournamentHash = window.location.hash.substring(1);
+        const url = `${window.location.origin}${window.location.pathname}#${tournamentHash}/timer/tournament`;
+        window.open(url, '_blank', 'width=800,height=600');
+      };
     }
   }
 }
@@ -851,8 +864,23 @@ function renderResults() {
       round.forEach((group, groupIndex) => {
         const groupDiv = document.createElement('div')
         groupDiv.classList.add('group')
+
+        // Create table header with timer link
         const groupName = document.createElement('h2')
-        groupName.textContent = `Table ${groupIndex + 1}`
+        groupName.textContent = `Table ${groupIndex + 1} `
+
+        // Add timer link button
+        const timerLink = document.createElement('button')
+        timerLink.className = 'timer-link-button'
+        timerLink.textContent = '⏱️ Timer'
+        timerLink.onclick = () => {
+          const tournamentHash = window.location.hash.substring(1);
+          const timerId = `round-${roundIndex + 1}-table-${groupIndex + 1}`;
+          const url = `${window.location.origin}${window.location.pathname}#${tournamentHash}/timer/${timerId}`;
+          window.open(url, '_blank', 'width=800,height=600');
+        };
+
+        groupName.appendChild(timerLink)
         groupDiv.appendChild(groupName)
   
         const members = document.createElement('ul')

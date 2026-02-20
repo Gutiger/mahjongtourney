@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tournament Timer</title>
+    <link rel="stylesheet" href="digital-7.css">
+    <link rel="stylesheet" href="timer.css">
+</head>
+<body>
+    <div class="container">
+        <div class="timer-label" id="timerLabel">Loading...</div>
+        <h1 class="title" id="timerTitle">Tournament Timer</h1>
+        <div class="countdown-display">
+            <div id="timer" class="timer">00:00:00</div>
+            <div id="status" class="status">Ready to start</div>
+        </div>
+
+        <div class="controls">
+            <div class="input-row">
+                <div class="input-group">
+                    <label for="hours">Hours:</label>
+                    <input type="number" id="hours" min="0" max="23" value="0">
+                </div>
+                <div class="input-group">
+                    <label for="minutes">Minutes:</label>
+                    <input type="number" id="minutes" min="0" max="59" value="10">
+                </div>
+                <div class="input-group">
+                    <label for="seconds">Seconds:</label>
+                    <input type="number" id="seconds" min="0" max="59" value="0">
+                </div>
+            </div>
+            <div class="button-group">
+                <button id="startBtn" class="btn primary">Start</button>
+                <button id="resumeBtn" class="btn primary" style="display: none;">Resume</button>
+                <button id="pauseBtn" class="btn secondary" disabled>Pause</button>
+                <button id="resetBtn" class="btn secondary">Reset</button>
+            </div>
+        </div>
+
+        <div class="connection-status">
+            <span id="connectionStatus" class="disconnected">Connecting...</span>
+        </div>
+    </div>
+
+    <script src="timer.js"></script>
+</body>
+</html>

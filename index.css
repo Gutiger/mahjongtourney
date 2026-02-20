@@ -1,9 +1,29 @@
+* {
+    box-sizing: border-box;
+}
+
 body {
     font-family: 'Trebuchet MS', sans-serif;
     background-color: #e0efe7; /* Light green Mahjong table color */
     margin: 0;
     padding: 20px;
     color: #333;
+    overflow-x: hidden;
+    max-width: 100vw;
+}
+
+/* Responsive images and embeds */
+img,
+video,
+iframe {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Better text wrapping for long player names */
+li.player-item {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 /* Tournament page layout: controls on left, results on right */
@@ -180,8 +200,12 @@ Print mode: Something you could hand out to students.
 Mobile responsive styles
 */
 @media (max-width: 768px) {
-  /* Stack controls and results vertically on mobile */
+  /* SINGLE COLUMN LAYOUT: Stack controls and results vertically on mobile */
   #tournament-page {
+    flex-direction: column;
+  }
+
+  #tournament-page.active {
     flex-direction: column;
   }
 
@@ -189,20 +213,26 @@ Mobile responsive styles
     padding: 10px;
   }
 
-  /* Make controls full-width on mobile */
+  /* Make controls full-width on mobile - appears at top */
   #controls {
+    width: 100%;
+    max-width: 100%;
     margin-right: 0;
-    margin-bottom: 1em;
-    flex: 1 1 100%;
+    margin-bottom: 1.5em;
+    flex: 0 0 auto;
+    order: 1;
   }
 
   #controls p {
     max-width: 100%;
   }
 
-  /* Make results full-width on mobile */
+  /* Make results full-width on mobile - appears below controls */
   #results {
-    flex: 1 1 100%;
+    width: 100%;
+    max-width: 100%;
+    flex: 0 0 auto;
+    order: 2;
   }
 
   /* Make help text responsive */
@@ -284,12 +314,142 @@ Mobile responsive styles
     padding: 8px 15px !important;
     font-size: 14px !important;
   }
+
+  /* Tournament configuration display */
+  #config-display {
+    padding: 15px !important;
+  }
+
+  #config-display h2 {
+    font-size: 1.3em !important;
+    margin-bottom: 15px !important;
+  }
+
+  #config-display > div:first-of-type {
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  /* Make timer buttons touch-friendly on mobile */
+  .tournament-timer-button {
+    padding: 12px 20px;
+    font-size: 16px;
+    min-height: 44px;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .timer-link-button {
+    padding: 8px 12px;
+    font-size: 0.9em;
+    min-height: 40px;
+    margin-left: 8px;
+    white-space: nowrap;
+  }
+
+  /* Make table headers wrap better with timer buttons on mobile */
+  #results h2 {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 1.3em;
+  }
+
+  /* Oka/Uma row responsive */
+  .oka-uma-row {
+    flex-direction: column !important;
+    gap: 15px !important;
+  }
+
+  .oka-uma-row > div {
+    width: 100% !important;
+  }
+
+  /* Uma container on mobile */
+  .uma-container {
+    justify-content: center;
+  }
+
+  /* Input fields - prevent zoom on iOS but keep widths */
+  input[type="text"]:not(#okaField):not(#starting_points):not(#chomboField):not(.uma-input):not(#forRoundsBox):not(#groupsBox):not(#ofSizeBox),
+  input[type="number"]:not(#okaField):not(#starting_points):not(#chomboField):not(.uma-input):not(#forRoundsBox):not(#groupsBox):not(#ofSizeBox) {
+    font-size: 16px !important;
+  }
+
+  /* Player list items on mobile */
+  li.player-item {
+    width: 100% !important;
+    max-width: 100% !important;
+    font-size: 15px;
+  }
+
+  /* Scoreboard on mobile */
+  #scoreBoard {
+    padding: 15px;
+  }
+
+  #scoreBoard li {
+    font-size: 15px;
+    padding: 10px 5px;
+  }
+
+  /* Groups container */
+  #results .groups .group {
+    padding: 15px;
+  }
+
+  #results .groups .group ul {
+    padding-left: 0;
+  }
+
+  #results .groups .group li {
+    margin-bottom: 10px;
+  }
 }
 
-/* Tablet and small desktop (768px - 1024px) */
+/* Tablet and small desktop (769px - 1024px) - Two column but narrower */
 @media (min-width: 769px) and (max-width: 1024px) {
+  #tournament-page.active {
+    gap: 1em;
+  }
+
+  #controls {
+    flex: 0 0 300px;
+  }
+
+  #results {
+    flex: 1 1 auto;
+  }
+
   #controls p {
     max-width: 100%;
+  }
+
+  /* Slightly smaller fields on tablets */
+  #starting_points {
+    width: 100px;
+  }
+
+  #okaField {
+    width: 90px;
+  }
+}
+
+/* Medium tablets (max-width: 900px) - Consider single column */
+@media (max-width: 900px) {
+  #tournament-page.active {
+    flex-direction: column;
+  }
+
+  #controls {
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto 1.5em auto;
+  }
+
+  #results {
+    width: 100%;
   }
 }
 
@@ -306,6 +466,10 @@ Mobile responsive styles
 
   h2 {
     font-size: 1.1em;
+  }
+
+  #results h2 {
+    font-size: 1em !important;
   }
 
   #scoreBoard,
@@ -331,6 +495,42 @@ Mobile responsive styles
   .uma-container {
     flex-wrap: wrap;
     gap: 3px;
+  }
+
+  /* Tournament config on very small screens */
+  #config-display {
+    padding: 10px !important;
+  }
+
+  #config-display h2 {
+    font-size: 1.1em !important;
+  }
+
+  /* Timer buttons on very small screens */
+  .tournament-timer-button {
+    padding: 10px 15px;
+    font-size: 14px;
+  }
+
+  .timer-link-button {
+    padding: 6px 10px;
+    font-size: 0.8em;
+    margin-left: 6px;
+    margin-top: 4px;
+  }
+
+  /* Make table headers more compact */
+  #results .groups .group {
+    padding: 10px;
+  }
+
+  /* Adjust round headers */
+  .round h1 {
+    font-size: 1.2em;
+  }
+
+  .conflictScore {
+    font-size: 0.9em;
   }
 }
 
@@ -421,7 +621,7 @@ Mobile responsive styles
 }
 
 /* Starting Points, Oka, Uma, and Chombo Fields */
-#starting_points, #okaField, #forRoundsBox, #groupsBox, #ofSizeBox {
+#forRoundsBox, #groupsBox, #ofSizeBox {
     width: 80px;
     margin: 10px;
     padding: 10px;
@@ -433,9 +633,9 @@ Mobile responsive styles
     color: #333;
 }
 
-/* Smaller width fields for Uma and Chombo */
-#uma1, #uma2, #uma3, #uma4, #chomboField {
-    width: 45px;
+/* Smaller width fields for Uma */
+#uma1, #uma2, #uma3, #uma4 {
+    width: 60px;
     margin: 2px;
     padding: 10px;
     border: 2px solid #b22222;
@@ -447,7 +647,7 @@ Mobile responsive styles
 }
 
 #okaField {
-    width: 75px;
+    width: 100px;
     margin: 2px;
     padding: 10px;
     border: 2px solid #b22222;
@@ -459,8 +659,27 @@ Mobile responsive styles
 }
 
 #starting_points {
-    width: 75px;
+    width: 110px;
     margin: 2px;
+    padding: 10px;
+    border: 2px solid #b22222;
+    border-radius: 5px;
+    font-size: 1.2em;
+    background-color: #fff;
+    text-align: center;
+    color: #333;
+}
+
+#chomboField {
+    width: 70px;
+    margin: 2px;
+    padding: 10px;
+    border: 2px solid #b22222;
+    border-radius: 5px;
+    font-size: 1.2em;
+    background-color: #fff;
+    text-align: center;
+    color: #333;
 }
 
 /* Button Styling */
@@ -673,6 +892,42 @@ input[type="range"]::-webkit-slider-thumb {
     border-radius: 50%;
     background: #c21f1f;
     cursor: pointer;
+}
+
+/* Tournament-wide timer button - at the top */
+.tournament-timer-button {
+    background-color: #006400;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    font-size: 1em;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.3s ease-in-out;
+}
+
+.tournament-timer-button:hover {
+    background-color: #228b22;
+}
+
+/* Timer link button styles - inline with table headers */
+.timer-link-button {
+    background-color: #006400;
+    color: white;
+    border: none;
+    padding: 4px 10px;
+    border-radius: 5px;
+    font-size: 0.75em;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.3s ease-in-out;
+    margin-left: 10px;
+    vertical-align: middle;
+}
+
+.timer-link-button:hover {
+    background-color: #228b22;
 }
 
 
