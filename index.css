@@ -911,6 +911,28 @@ input[type="range"]::-webkit-slider-thumb {
     background-color: #228b22;
 }
 
+/* Collapsible round toggle arrow */
+.round-toggle {
+    display: inline-block;
+    font-size: 0.75em;
+    vertical-align: middle;
+    margin-right: 4px;
+    transition: transform 0.2s ease;
+    user-select: none;
+}
+
+.round-toggle.collapsed {
+    transform: rotate(-90deg);
+}
+
+#results h1 {
+    cursor: pointer;
+}
+
+#results h1:hover {
+    opacity: 0.85;
+}
+
 /* Timer link button styles - inline with table headers */
 .timer-link-button {
     background-color: #006400;

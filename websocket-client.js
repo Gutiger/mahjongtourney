@@ -8,6 +8,16 @@ class WebSocketClient {
     this.messageHandlers = new Map();
     this.isReconnecting = false;
     this.tournamentHash = null;
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        if (!this.ws || this.ws.readyState === WebSocket.CLOSED || this.ws.readyState === WebSocket.CLOSING) {
+          this.reconnectAttempts = 0;
+          this.isReconnecting = false;
+          this.attemptReconnect();
+        }
+      }
+    });
   }
 
   connect(tournamentHash) {
@@ -21,7 +31,7 @@ class WebSocketClient {
       console.log('WebSocket connected');
       this.reconnectAttempts = 0;
       this.isReconnecting = false;
-      this.showConnectionStatus(true);
+      this.showConnectionStatus('connected');
 
       // Join the tournament room
       if (this.tournamentHash) {
@@ -40,7 +50,7 @@ class WebSocketClient {
 
     this.ws.onclose = () => {
       console.log('WebSocket disconnected');
-      this.showConnectionStatus(false);
+      this.showConnectionStatus('disconnected');
       this.attemptReconnect();
     };
 
@@ -80,8 +90,9 @@ class WebSocketClient {
 
       console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
 
+      this.showConnectionStatus('reconnecting');
       setTimeout(() => {
-        this.connect();
+        this.connect(this.tournamentHash);
       }, delay);
     } else {
       console.error('Max reconnection attempts reached');
@@ -89,7 +100,7 @@ class WebSocketClient {
     }
   }
 
-  showConnectionStatus(connected) {
+  showConnectionStatus(status) {
     let statusDiv = document.getElementById('connection-status');
     if (!statusDiv) {
       statusDiv = document.createElement('div');
@@ -107,19 +118,24 @@ class WebSocketClient {
       document.body.appendChild(statusDiv);
     }
 
-    if (connected) {
+    clearTimeout(this._statusFadeTimeout);
+    statusDiv.style.opacity = '1';
+
+    if (status === 'connected') {
       statusDiv.textContent = '✓ Connected';
       statusDiv.style.backgroundColor = '#4CAF50';
       statusDiv.style.color = 'white';
-      statusDiv.style.opacity = '1';
-      setTimeout(() => {
+      this._statusFadeTimeout = setTimeout(() => {
         statusDiv.style.opacity = '0';
       }, 2000);
+    } else if (status === 'reconnecting') {
+      statusDiv.textContent = '↻ Reconnecting...';
+      statusDiv.style.backgroundColor = '#FF9800';
+      statusDiv.style.color = 'white';
     } else {
       statusDiv.textContent = '✗ Disconnected';
       statusDiv.style.backgroundColor = '#f44336';
       statusDiv.style.color = 'white';
-      statusDiv.style.opacity = '1';
     }
   }
 

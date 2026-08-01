@@ -852,22 +852,51 @@ function renderResults() {
       roundDiv.classList.add('round')
   
       const header = document.createElement('h1')
-      header.textContent = `Round ${roundIndex+1}`
+
+      const toggleArrow = document.createElement('span')
+      toggleArrow.className = 'round-toggle'
+      toggleArrow.textContent = '▼'
+      header.appendChild(toggleArrow)
+      header.appendChild(document.createTextNode(` Round ${roundIndex+1}`))
+
       const conflictScore = document.createElement('div')
       conflictScore.classList.add('conflictScore')
-      conflictScore.textContent = `Conflict score: ${lastResults.roundScores[roundIndex]}`
+      conflictScore.textContent = `pcs: ${lastResults.roundScores[roundIndex]}`
       header.appendChild(conflictScore)
-  
+
+      if (lastResults.tableRotationScores) {
+        const tableConflictScore = document.createElement('div')
+        tableConflictScore.classList.add('conflictScore')
+        tableConflictScore.textContent = `tcs: ${lastResults.tableRotationScores[roundIndex]}`
+        header.appendChild(tableConflictScore)
+      }
+
       const groups = document.createElement('div')
       groups.classList.add('groups')
+
+      header.addEventListener('click', () => {
+        const collapsed = groups.style.display === 'none'
+        groups.style.display = collapsed ? '' : 'none'
+        toggleArrow.classList.toggle('collapsed', !collapsed)
+      })
   
-      round.forEach((group, groupIndex) => {
+      // Reorder groups so physical Table 1 is always first, Table 2 second, etc.
+      const assignments = lastResults.tableAssignments;
+      const orderedRound = (assignments && assignments[roundIndex])
+        ? (() => {
+            const ordered = new Array(round.length);
+            round.forEach((group, g) => { ordered[assignments[roundIndex][g]] = group; });
+            return ordered;
+          })()
+        : round;
+
+      orderedRound.forEach((group, tableIndex) => {
         const groupDiv = document.createElement('div')
         groupDiv.classList.add('group')
 
         // Create table header with timer link
         const groupName = document.createElement('h2')
-        groupName.textContent = `Table ${groupIndex + 1} `
+        groupName.textContent = `Table ${tableIndex + 1} `
 
         // Add timer link button
         const timerLink = document.createElement('button')
@@ -875,14 +904,14 @@ function renderResults() {
         timerLink.textContent = '⏱️ Timer'
         timerLink.onclick = () => {
           const tournamentHash = window.location.hash.substring(1);
-          const timerId = `round-${roundIndex + 1}-table-${groupIndex + 1}`;
+          const timerId = `round-${roundIndex + 1}-table-${tableIndex + 1}`;
           const url = `${window.location.origin}${window.location.pathname}#${tournamentHash}/timer/${timerId}`;
           window.open(url, '_blank', 'width=800,height=600');
         };
 
         groupName.appendChild(timerLink)
         groupDiv.appendChild(groupName)
-  
+
         const members = document.createElement('ul')
 	let counter = 0;
         group.forEach(personNumber => {
@@ -894,7 +923,7 @@ function renderResults() {
 	//const randomValue = Math.floor(Math.random() * 50000);
     	//textField.value = randomValue;
 
-	  const fieldId = `round-${roundIndex}-table-${groupIndex}-person-${personNumber}`
+	  const fieldId = `round-${roundIndex}-table-${tableIndex}-person-${personNumber}`
 	  textField.id = fieldId
 
 	    // Restore saved value if available
