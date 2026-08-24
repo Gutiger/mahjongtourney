@@ -70,6 +70,14 @@ let chomboRefs = {}
 let isSyncingFromServer = false;
 let hasReceivedInitialState = false;
 
+// Default timer duration (minutes) — overridden by tournament config
+let timerMinutes = 60;
+
+// Inline timer state
+const timerStates = new Map();    // timerId -> {status, endTime, timeLeft}
+const timerElements = new Map();  // timerId -> {display, startBtn, pauseBtn, resetBtn, durationInput, minLabel}
+const timerIntervals = new Map(); // timerId -> intervalId
+
 // Helper to send state updates
 function syncStateToServer(type, payload) {
   if (!isSyncingFromServer && hasReceivedInitialState && typeof wsClient !== 'undefined') {
@@ -113,9 +121,7 @@ function lockConfigFields() {
         <div><strong>Number of Groups:</strong> ${groups}</div>
         <div><strong>Players per Group:</strong> ${ofSize}</div>
         <div><strong>Number of Rounds:</strong> ${forRounds}</div>
-      </div>
-      <div style="margin-top: 20px; text-align: center;">
-        <button id="tournament-timer-btn" class="tournament-timer-button">⏱️ Open Tournament Timer</button>
+        <div><strong>Round Duration:</strong> ${timerMinutes} min</div>
       </div>
     `;
 
@@ -123,16 +129,6 @@ function lockConfigFields() {
     const title = document.querySelector('#controls > h1');
     if (title && title.nextSibling) {
       title.parentNode.insertBefore(configDisplay, title.nextSibling);
-    }
-
-    // Add click handler for tournament timer button
-    const tournamentTimerBtn = document.getElementById('tournament-timer-btn');
-    if (tournamentTimerBtn) {
-      tournamentTimerBtn.onclick = () => {
-        const tournamentHash = window.location.hash.substring(1);
-        const url = `${window.location.origin}${window.location.pathname}#${tournamentHash}/timer/tournament`;
-        window.open(url, '_blank', 'width=800,height=600');
-      };
     }
   }
 }
@@ -340,6 +336,7 @@ function setupWebSocketSync(tournamentHash) {
     groups = state.config.groups;
     ofSize = state.config.ofSize;
     forRounds = state.config.forRounds;
+    timerMinutes = state.config.timerMinutes || 60;
     playerNames = state.config.playerNames;
     forbiddenPairs = Immutable.Set(state.config.forbiddenPairs);
     discouragedGroups = Immutable.Set(state.config.discouragedGroups);
@@ -526,6 +523,33 @@ function setupWebSocketSync(tournamentHash) {
     }
   });
 
+  wsClient.on('TIMER_STARTED', (message) => {
+    applyTimerState(message.payload.timerId, { status: 'running', endTime: message.payload.endTime });
+  });
+
+  wsClient.on('TIMER_PAUSED', (message) => {
+    applyTimerState(message.payload.timerId, { status: 'paused', timeLeft: message.payload.timeLeft });
+  });
+
+  wsClient.on('TIMER_RESET', (message) => {
+    applyTimerState(message.payload.timerId, { status: 'ready' });
+  });
+
+  wsClient.on('TIMER_FINISHED', (message) => {
+    applyTimerState(message.payload.timerId, { status: 'finished' });
+  });
+
+  wsClient.on('TIMER_SYNC', (message) => {
+    const { timerId, isRunning, endTime, timeLeft } = message.payload;
+    if (isRunning) {
+      applyTimerState(timerId, { status: 'running', endTime });
+    } else if (timeLeft > 0) {
+      applyTimerState(timerId, { status: 'paused', timeLeft });
+    } else {
+      applyTimerState(timerId, { status: 'ready' });
+    }
+  });
+
   // Connect WebSocket with tournament hash
   wsClient.connect(tournamentHash);
 }
@@ -617,6 +641,7 @@ function updateDisplayedNames() {
           // Recreate the input field with the same properties
           const newInput = document.createElement('input')
           newInput.type = 'text'
+          newInput.inputMode = 'decimal'
           newInput.id = inputId
           newInput.value = inputValue
           
@@ -844,7 +869,137 @@ function downloadCsv() {
   link.click()
 }
 
+function formatTimerTime(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function createInlineTimer(timerId) {
+  const container = document.createElement('span');
+  container.className = 'inline-timer';
+  container.addEventListener('click', e => e.stopPropagation());
+
+  // Single input serves as both duration entry (when ready) and countdown display (when running)
+  const timerInput = document.createElement('input');
+  timerInput.type = 'text';
+  timerInput.className = 'timer-input timer-ready';
+  timerInput.value = formatTimerTime(timerMinutes * 60);
+  timerInput.title = 'MM:SS — edit to change duration';
+
+  const startBtn = document.createElement('button');
+  startBtn.className = 'timer-btn timer-start-btn';
+  startBtn.textContent = '▶';
+
+  const pauseBtn = document.createElement('button');
+  pauseBtn.className = 'timer-btn timer-pause-btn';
+  pauseBtn.textContent = '⏸';
+  pauseBtn.style.display = 'none';
+
+  const resetBtn = document.createElement('button');
+  resetBtn.className = 'timer-btn timer-reset-btn';
+  resetBtn.textContent = '↺';
+  resetBtn.style.display = 'none';
+
+  container.append(timerInput, startBtn, pauseBtn, resetBtn);
+  timerElements.set(timerId, { timerInput, startBtn, pauseBtn, resetBtn });
+
+  startBtn.addEventListener('click', () => {
+    const state = timerStates.get(timerId);
+    if (state && state.status === 'paused') {
+      wsClient.send('TIMER_RESUME', { timerId });
+    } else {
+      const raw = timerInput.value.trim();
+      let duration;
+      if (raw.includes(':')) {
+        const [m, s] = raw.split(':').map(v => parseInt(v) || 0);
+        duration = m * 60 + s;
+      } else {
+        duration = Math.round((parseFloat(raw) || 10) * 60);
+      }
+      wsClient.send('TIMER_START', { timerId, duration });
+    }
+  });
+  pauseBtn.addEventListener('click', () => wsClient.send('TIMER_PAUSE', { timerId }));
+  resetBtn.addEventListener('click', () => wsClient.send('TIMER_RESET', { timerId }));
+
+  return container;
+}
+
+function applyTimerState(timerId, state) {
+  timerStates.set(timerId, state);
+  const els = timerElements.get(timerId);
+  if (!els) return;
+  const { timerInput, startBtn, pauseBtn, resetBtn } = els;
+
+  if (timerIntervals.has(timerId)) {
+    clearInterval(timerIntervals.get(timerId));
+    timerIntervals.delete(timerId);
+  }
+
+  if (state.status === 'running') {
+    timerInput.readOnly = true;
+    timerInput.className = 'timer-input timer-running';
+    startBtn.style.display = 'none';
+    pauseBtn.style.display = '';
+    resetBtn.style.display = '';
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((state.endTime - Date.now()) / 1000));
+      timerInput.value = formatTimerTime(left);
+      if (left === 0) {
+        clearInterval(timerIntervals.get(timerId));
+        timerIntervals.delete(timerId);
+        applyTimerState(timerId, { status: 'finished' });
+      }
+    };
+    tick();
+    timerIntervals.set(timerId, setInterval(tick, 250));
+
+  } else if (state.status === 'paused') {
+    timerInput.readOnly = true;
+    timerInput.className = 'timer-input timer-paused';
+    timerInput.value = formatTimerTime(Math.ceil((state.timeLeft || 0) / 1000));
+    startBtn.textContent = '▶';
+    startBtn.style.display = '';
+    pauseBtn.style.display = 'none';
+    resetBtn.style.display = '';
+
+  } else if (state.status === 'finished') {
+    timerInput.readOnly = true;
+    timerInput.className = 'timer-input timer-finished';
+    timerInput.value = '0:00';
+    startBtn.textContent = '▶';
+    startBtn.style.display = '';
+    pauseBtn.style.display = 'none';
+    resetBtn.style.display = '';
+
+  } else { // ready / reset
+    timerInput.readOnly = false;
+    timerInput.className = 'timer-input timer-ready';
+    startBtn.textContent = '▶';
+    startBtn.style.display = '';
+    pauseBtn.style.display = 'none';
+    resetBtn.style.display = 'none';
+    // Restore to configured default duration
+    timerInput.value = formatTimerTime(timerMinutes * 60);
+  }
+}
+
+function subscribeToInlineTimers() {
+  // No hasReceivedInitialState guard — wsClient.send() is a safe no-op when not connected,
+  // and this is called from inside FULL_STATE before that flag is set.
+  const hash = window.location.hash.substring(1).split('/')[0];
+  timerElements.forEach((_, timerId) => {
+    wsClient.send('JOIN_TIMER', { hash, timerId });
+  });
+}
+
 function renderResults() {
+  // Clear old timer intervals and element refs before re-render
+  timerIntervals.forEach(id => clearInterval(id));
+  timerIntervals.clear();
+  timerElements.clear();
+
   resultsDiv.innerHTML = ''
   if (lastResults) {
     lastResults.rounds.forEach((round, roundIndex) => {
@@ -853,23 +1008,25 @@ function renderResults() {
   
       const header = document.createElement('h1')
 
-      const toggleArrow = document.createElement('span')
-      toggleArrow.className = 'round-toggle'
-      toggleArrow.textContent = '▼'
-      header.appendChild(toggleArrow)
-      header.appendChild(document.createTextNode(` Round ${roundIndex+1}`))
-
+      // Floated elements must come first in DOM so inline content sits beside them
       const conflictScore = document.createElement('div')
       conflictScore.classList.add('conflictScore')
-      conflictScore.textContent = `pcs: ${lastResults.roundScores[roundIndex]}`
+      conflictScore.textContent = `,pcs:${lastResults.roundScores[roundIndex]}`
       header.appendChild(conflictScore)
 
       if (lastResults.tableRotationScores) {
         const tableConflictScore = document.createElement('div')
         tableConflictScore.classList.add('conflictScore')
-        tableConflictScore.textContent = `tcs: ${lastResults.tableRotationScores[roundIndex]}`
+        tableConflictScore.textContent = `tcs:${lastResults.tableRotationScores[roundIndex]}`
         header.appendChild(tableConflictScore)
       }
+
+      const toggleArrow = document.createElement('span')
+      toggleArrow.className = 'round-toggle'
+      toggleArrow.textContent = '▼'
+      header.appendChild(toggleArrow)
+      header.appendChild(document.createTextNode(` Round ${roundIndex+1} `))
+      header.appendChild(createInlineTimer(`round-${roundIndex + 1}`))
 
       const groups = document.createElement('div')
       groups.classList.add('groups')
@@ -894,22 +1051,10 @@ function renderResults() {
         const groupDiv = document.createElement('div')
         groupDiv.classList.add('group')
 
-        // Create table header with timer link
+        // Create table header with inline timer
         const groupName = document.createElement('h2')
         groupName.textContent = `Table ${tableIndex + 1} `
-
-        // Add timer link button
-        const timerLink = document.createElement('button')
-        timerLink.className = 'timer-link-button'
-        timerLink.textContent = '⏱️ Timer'
-        timerLink.onclick = () => {
-          const tournamentHash = window.location.hash.substring(1);
-          const timerId = `round-${roundIndex + 1}-table-${tableIndex + 1}`;
-          const url = `${window.location.origin}${window.location.pathname}#${tournamentHash}/timer/${timerId}`;
-          window.open(url, '_blank', 'width=800,height=600');
-        };
-
-        groupName.appendChild(timerLink)
+        groupName.appendChild(createInlineTimer(`round-${roundIndex + 1}-table-${tableIndex + 1}`))
         groupDiv.appendChild(groupName)
 
         const members = document.createElement('ul')
@@ -920,6 +1065,7 @@ function renderResults() {
 	  const textField = document.createElement('input')
           member.textContent = `(${windNames[counter]}) ${playerName(personNumber)}: `
 	  textField.type = 'text';
+	  textField.inputMode = 'decimal';
 	//const randomValue = Math.floor(Math.random() * 50000);
     	//textField.value = randomValue;
 
@@ -1022,6 +1168,7 @@ function renderResults() {
       resultsDiv.appendChild(document.createTextNode('Thinking...'));
     }
   }
+  subscribeToInlineTimers();
 }
 
 document.addEventListener('DOMContentLoaded', init)

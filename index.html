@@ -58,17 +58,22 @@
             <div class="form-row">
                 <div class="form-group">
                     <label for="numPlayers">Number of Players</label>
-                    <input type="number" id="numPlayers" value="12" min="3" max="100" />
+                    <input type="number" id="numPlayers" value="12" min="3" max="100" inputmode="numeric" />
                 </div>
                 <div class="form-group">
                     <label for="playersPerTable">Players per Table</label>
-                    <input type="number" id="playersPerTable" value="4" min="3" max="4" />
+                    <input type="number" id="playersPerTable" value="4" min="3" max="4" inputmode="numeric" />
                 </div>
             </div>
 
             <div class="form-group">
                 <label for="numRounds">Number of Rounds</label>
-                <input type="number" id="numRounds" value="4" min="1" max="20" />
+                <input type="number" id="numRounds" value="4" min="1" max="20" inputmode="numeric" />
+            </div>
+
+            <div class="form-group">
+                <label for="timerMinutes">Round Timer (minutes)</label>
+                <input type="number" id="timerMinutes" value="60" min="1" max="999" inputmode="numeric" />
             </div>
 
             <button id="createBtn">Create Tournament</button>
@@ -177,6 +182,7 @@
             const numPlayers = parseInt(numPlayersInput.value);
             const playersPerTable = parseInt(playersPerTableInput.value);
             const numRounds = parseInt(numRoundsInput.value);
+            const timerMinutes = parseInt(document.getElementById('timerMinutes').value) || 60;
 
             // Validation
             if (!hash) {
@@ -215,7 +221,8 @@
                         config: {
                             groups: numGroups,
                             ofSize: playersPerTable,
-                            forRounds: numRounds
+                            forRounds: numRounds,
+                            timerMinutes: timerMinutes
                         }
                     })
                 });
@@ -273,29 +280,29 @@
     <div>
         <label>Starting points:</label>
                 </br>
-        <input type="text" id="starting_points" value="25000">
+        <input type="text" id="starting_points" value="25000" inputmode="numeric">
     </div>
 
     <div>
         <label>Oka (per person):</label>
 		</br>
-        <input type="text" id="okaField" value="5000">
+        <input type="text" id="okaField" value="5000" inputmode="numeric">
     </div>
 
     <div>
         <label>Uma:</label>
         <div class="uma-container">
-            <input type="text" class="small-input" id="uma1" value="15">
-            <input type="text" class="small-input" id="uma2" value="5">
-            <input type="text" class="small-input" id="uma3" value="-5">
-            <input type="text" class="small-input" id="uma4" value="-15">
+            <input type="text" class="small-input" id="uma1" value="15" inputmode="decimal">
+            <input type="text" class="small-input" id="uma2" value="5" inputmode="decimal">
+            <input type="text" class="small-input" id="uma3" value="-5" inputmode="decimal">
+            <input type="text" class="small-input" id="uma4" value="-15" inputmode="decimal">
         </div>
     </div>
 
     <div>
         <label>Chombo:</label>
         </br>
-        <input type="text" id="chomboField" value="-10">
+        <input type="text" id="chomboField" value="-10" inputmode="decimal">
     </div>
 </div>
 		</br>

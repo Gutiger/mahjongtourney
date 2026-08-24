@@ -277,6 +277,7 @@ app.post('/api/tournament', (req, res) => {
       groups: groups,
       ofSize: ofSize,
       forRounds: config.forRounds || 3,
+      timerMinutes: config.timerMinutes || 60,
       playerNames: defaultPlayerNames,
       forbiddenPairs: [],
       discouragedGroups: [],

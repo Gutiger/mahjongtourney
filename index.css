@@ -330,29 +330,12 @@ Mobile responsive styles
     gap: 10px !important;
   }
 
-  /* Make timer buttons touch-friendly on mobile */
-  .tournament-timer-button {
-    padding: 12px 20px;
-    font-size: 16px;
-    min-height: 44px;
-    width: 100%;
-    max-width: 100%;
-  }
-
-  .timer-link-button {
-    padding: 8px 12px;
-    font-size: 0.9em;
-    min-height: 40px;
-    margin-left: 8px;
-    white-space: nowrap;
-  }
-
-  /* Make table headers wrap better with timer buttons on mobile */
+  /* Make table headers work with inline timer on mobile */
   #results h2 {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 4px;
     font-size: 1.3em;
   }
 
@@ -504,19 +487,6 @@ Mobile responsive styles
 
   #config-display h2 {
     font-size: 1.1em !important;
-  }
-
-  /* Timer buttons on very small screens */
-  .tournament-timer-button {
-    padding: 10px 15px;
-    font-size: 14px;
-  }
-
-  .timer-link-button {
-    padding: 6px 10px;
-    font-size: 0.8em;
-    margin-left: 6px;
-    margin-top: 4px;
   }
 
   /* Make table headers more compact */
@@ -933,23 +903,99 @@ input[type="range"]::-webkit-slider-thumb {
     opacity: 0.85;
 }
 
-/* Timer link button styles - inline with table headers */
-.timer-link-button {
-    background-color: #006400;
-    color: white;
-    border: none;
-    padding: 4px 10px;
-    border-radius: 5px;
-    font-size: 0.75em;
-    font-weight: bold;
-    cursor: pointer;
-    transition: background-color 0.3s ease-in-out;
-    margin-left: 10px;
-    vertical-align: middle;
+/* ── Inline timers ─────────────────────────────────────── */
+
+/* Wrapper (used in both round h1 and table h2) */
+.inline-timer {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    vertical-align: 0.22em; /* nudge up so timer centre matches cap-height */
+    font-weight: normal;
+    font-size: 0.46em; /* scale down relative to h1 (2em) → ~0.92em body */
 }
 
-.timer-link-button:hover {
-    background-color: #228b22;
+h2 .inline-timer {
+    font-size: 0.58em; /* scale down relative to h2 (1.6em) → ~0.93em body */
+    vertical-align: 0.18em;
+}
+
+/* h1 is bigger so needs a larger nudge to hit cap-height centre */
+#results h1 .inline-timer {
+    vertical-align: 0.45em;
+}
+
+/* Single input — editable when ready, readonly countdown when running */
+/* !important beats the global input[type="text"]{width:50px} rule (higher specificity) */
+.timer-input {
+    width: 5em !important;
+    padding: 3px 5px !important;
+    border: 2px solid #b22222;
+    border-radius: 5px !important;
+    background-color: #fff;
+    text-align: center;
+    color: #333;
+    font-family: 'Trebuchet MS', sans-serif;
+    /* prevent iOS zoom */
+    font-size: max(1em, 16px) !important;
+    cursor: text;
+    line-height: 1.2;
+}
+
+.timer-input[readonly] {
+    cursor: default;
+    font-family: 'Courier New', monospace;
+    letter-spacing: 0.5px;
+}
+
+.timer-input.timer-ready    { color: #555; }
+.timer-input.timer-running  { color: #006400; border-color: #006400; }
+.timer-input.timer-paused   { color: #8b4500; border-color: #8b4500; }
+.timer-input.timer-finished {
+    color: #b22222;
+    border-color: #b22222;
+    animation: timer-flash 0.8s step-end infinite;
+}
+
+@keyframes timer-flash {
+    50% { opacity: 0.2; }
+}
+
+/* Small icon buttons — square, flex-centered, override global button defaults */
+.timer-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0 3px 0;
+    line-height: 1;
+    background: #006400;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    width: 2em;
+    height: 2em;
+    font-size: 0.95em;
+    cursor: pointer;
+    transition: background 0.15s, box-shadow 0.15s;
+    margin: 0;
+    min-height: 0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    flex-shrink: 0;
+}
+
+/* ▶ glyph is optically right-of-centre in its cell — nudge it */
+.timer-start-btn { padding-left: 1px; }
+
+.timer-btn:hover { background: #228b22; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+
+.timer-pause-btn            { background: #8b4500; }
+.timer-pause-btn:hover      { background: #b35900; }
+
+.timer-reset-btn            { background: #555; }
+.timer-reset-btn:hover      { background: #777; }
+
+@media (max-width: 768px) {
+    .timer-btn { width: 2.2em; height: 2.2em; }
 }
 
 
