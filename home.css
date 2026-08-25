@@ -121,3 +121,13 @@
             margin-top: 10px;
         }
 
+        @media (max-width: 520px) {
+            .container {
+                min-width: 0;
+                padding: 25px 20px;
+            }
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+

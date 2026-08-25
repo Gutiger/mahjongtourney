@@ -904,20 +904,26 @@ function createInlineTimer(timerId) {
   container.append(timerInput, startBtn, pauseBtn, resetBtn);
   timerElements.set(timerId, { timerInput, startBtn, pauseBtn, resetBtn });
 
+  const parseInput = (raw) => {
+    if (raw.includes(':')) {
+      const [m, s] = raw.split(':').map(v => parseInt(v) || 0);
+      return m * 60 + s;
+    }
+    return Math.round((parseFloat(raw) || timerMinutes) * 60);
+  };
+
   startBtn.addEventListener('click', () => {
     const state = timerStates.get(timerId);
     if (state && state.status === 'paused') {
-      wsClient.send('TIMER_RESUME', { timerId });
-    } else {
-      const raw = timerInput.value.trim();
-      let duration;
-      if (raw.includes(':')) {
-        const [m, s] = raw.split(':').map(v => parseInt(v) || 0);
-        duration = m * 60 + s;
+      const pausedSecs = Math.floor((state.timeLeft || 0) / 1000);
+      const inputSecs = parseInput(timerInput.value.trim());
+      if (inputSecs === pausedSecs) {
+        wsClient.send('TIMER_RESUME', { timerId });
       } else {
-        duration = Math.round((parseFloat(raw) || 10) * 60);
+        wsClient.send('TIMER_START', { timerId, duration: inputSecs });
       }
-      wsClient.send('TIMER_START', { timerId, duration });
+    } else {
+      wsClient.send('TIMER_START', { timerId, duration: parseInput(timerInput.value.trim()) });
     }
   });
   pauseBtn.addEventListener('click', () => wsClient.send('TIMER_PAUSE', { timerId }));
@@ -944,7 +950,7 @@ function applyTimerState(timerId, state) {
     pauseBtn.style.display = '';
     resetBtn.style.display = '';
     const tick = () => {
-      const left = Math.max(0, Math.ceil((state.endTime - Date.now()) / 1000));
+      const left = Math.max(0, Math.floor((state.endTime - Date.now()) / 1000));
       timerInput.value = formatTimerTime(left);
       if (left === 0) {
         clearInterval(timerIntervals.get(timerId));
@@ -956,9 +962,9 @@ function applyTimerState(timerId, state) {
     timerIntervals.set(timerId, setInterval(tick, 250));
 
   } else if (state.status === 'paused') {
-    timerInput.readOnly = true;
+    timerInput.readOnly = false;
     timerInput.className = 'timer-input timer-paused';
-    timerInput.value = formatTimerTime(Math.ceil((state.timeLeft || 0) / 1000));
+    timerInput.value = formatTimerTime(Math.floor((state.timeLeft || 0) / 1000));
     startBtn.textContent = '▶';
     startBtn.style.display = '';
     pauseBtn.style.display = 'none';
