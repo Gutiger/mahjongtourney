@@ -2,7 +2,6 @@ const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
-const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -12,46 +11,36 @@ const wss = new WebSocket.Server({ server });
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// --- Trophy winners persistence ---
-const DATA_DIR = process.env.DATA_DIR || __dirname;
-const WINNERS_FILE = path.join(DATA_DIR, 'winners.json');
-const TROPHY_PASSWORD = process.env.TROPHY_PASSWORD || 'mahjong';
-
-let winners = [];
+// --- Trophy winners ---
+// Set WINNERS to a JSON array of {name, date, tournament} objects.
+const DEFAULT_WINNERS = [
+  { name: 'Richard 🀀🀀🀃🀃🀃🀄︎🀄︎🀄︎🀅🀅🀅🀆🀆🀆', date: 'December 21, 2024', tournament: 'Jonging It' },
+  { name: 'Julian', date: 'March 15, 2025', tournament: 'Jonging It' },
+  { name: 'Matt/Skye', date: 'May 18, 2025', tournament: 'Jonging It' },
+  { name: 'Evan 🀄︎🀄︎🀄︎🀅🀅🀅🀆🀆🀆', date: 'August 16, 2025', tournament: 'Jonging It' },
+  { name: 'Dai', date: 'December 22, 2025', tournament: 'Jonging It' },
+  { name: 'Satoshi 🀀🀁🀂🀃🀄︎🀅🀆', date: 'February 21, 2026', tournament: 'Jonging It' },
+  { name: 'Elliot', date: 'May 16, 2026', tournament: 'Jonging It' },
+  { name: 'Victor', date: 'September 6, 2026', tournament: 'Jonging It' },
+];
 
 function loadWinners() {
+  if (!process.env.WINNERS) {
+    console.log('WINNERS not set; using default winners list');
+    return DEFAULT_WINNERS;
+  }
   try {
-    if (fs.existsSync(WINNERS_FILE)) {
-      winners = JSON.parse(fs.readFileSync(WINNERS_FILE, 'utf8'));
-      console.log(`Loaded ${winners.length} winners from ${WINNERS_FILE}`);
-    } else {
-      winners = [
-        { name: 'Richard 🀀🀀🀃🀃🀃🀄︎🀄︎🀄︎🀅🀅🀅🀆🀆🀆', date: 'December 21, 2024', tournament: 'Jonging It' },
-        { name: 'Julian', date: 'March 15, 2025', tournament: 'Jonging It' },
-        { name: 'Matt/Skye', date: 'May 18, 2025', tournament: 'Jonging It' },
-        { name: 'Evan 🀄︎🀄︎🀄︎🀅🀅🀅🀆🀆🀆', date: 'August 16, 2025', tournament: 'Jonging It' },
-        { name: 'Dai', date: 'December 22, 2025', tournament: 'Jonging It' },
-        { name: 'Satoshi 🀀🀁🀂🀃🀄︎🀅🀆', date: 'February 21, 2026', tournament: 'Jonging It' },
-        { name: 'Elliot', date: 'May 16, 2026', tournament: 'Jonging It' },
-      ];
-      saveWinners();
-      console.log(`Seeded winners file at ${WINNERS_FILE}`);
-    }
+    const parsed = JSON.parse(process.env.WINNERS);
+    if (!Array.isArray(parsed)) throw new Error('WINNERS must be a JSON array');
+    console.log(`Loaded ${parsed.length} winners from WINNERS env var`);
+    return parsed;
   } catch (e) {
-    console.error('Failed to load winners:', e);
-    winners = [];
+    console.error('Failed to parse WINNERS env var:', e.message);
+    return [];
   }
 }
 
-function saveWinners() {
-  try {
-    const tmp = WINNERS_FILE + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(winners, null, 2));
-    fs.renameSync(tmp, WINNERS_FILE);
-  } catch (e) {
-    console.error('Failed to save winners:', e);
-  }
-}
+const winners = loadWinners();
 
 function escapeHtml(str) {
   return String(str)
@@ -128,118 +117,11 @@ function renderTrophyPage() {
 </html>`;
 }
 
-function renderAdminPage(message) {
-  const messageHtml = message
-    ? `<div class="message ${message.ok ? 'success' : 'error'}">${escapeHtml(message.text)}</div>`
-    : '';
-
-  const winnerRows = winners.map((w, i) => `
-    <tr>
-      <td>#${i + 1}</td>
-      <td>${escapeHtml(w.name)}</td>
-      <td>${escapeHtml(w.date)}</td>
-      <td>${escapeHtml(w.tournament)}</td>
-      <td>
-        <form method="POST" action="/trophy/admin/delete" style="display:inline">
-          <input type="hidden" name="index" value="${i}">
-          <input type="hidden" name="password" id="del-pw-${i}">
-          <button type="submit" class="delete-btn" onclick="this.form.password.value=document.getElementById('password').value">Delete</button>
-        </form>
-      </td>
-    </tr>`).join('\n');
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trophy Admin</title>
-    <style>
-        body { font-family: Georgia, serif; background: #1a1a2e; color: #f1f1f1; padding: 40px 20px; }
-        .container { max-width: 700px; margin: 0 auto; }
-        h1 { color: #d4af37; margin-bottom: 30px; }
-        h2 { color: #d4af37; margin: 30px 0 15px; }
-        label { display: block; margin-bottom: 6px; color: #ccc; }
-        input[type=text] { width: 100%; padding: 10px; margin-bottom: 15px; background: #2d3561; border: 1px solid #3d4a7a; border-radius: 5px; color: #fff; font-size: 1em; }
-        button.submit-btn { background: #d4af37; color: #1a1a2e; border: none; padding: 12px 30px; border-radius: 5px; font-size: 1em; font-weight: bold; cursor: pointer; }
-        button.submit-btn:hover { background: #e8c84a; }
-        button.delete-btn { background: #8b0000; color: white; border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 0.9em; }
-        button.delete-btn:hover { background: #b22222; }
-        .message { padding: 12px 20px; border-radius: 5px; margin-bottom: 20px; font-weight: bold; }
-        .message.success { background: #1e4d2b; border: 1px solid #4CAF50; color: #90EE90; }
-        .message.error { background: #4d1e1e; border: 1px solid #f44336; color: #ffcccb; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #3d4a7a; }
-        th { color: #d4af37; }
-        a { color: #d4af37; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🏆 Trophy Admin</h1>
-        <a href="/trophy">← View trophy page</a>
-        ${messageHtml}
-
-        <h2>Add New Winner</h2>
-        <form method="POST" action="/trophy/admin">
-            <label>Password</label>
-            <input type="text" name="password" id="password" autocomplete="off">
-            <label>Winner Name</label>
-            <input type="text" name="name" placeholder="e.g. Richard 🀀🀁🀂">
-            <label>Date</label>
-            <input type="text" name="date" placeholder="e.g. August 1, 2026">
-            <label>Tournament Name</label>
-            <input type="text" name="tournament" value="Jonging It">
-            <button type="submit" class="submit-btn">Add Winner</button>
-        </form>
-
-        <h2>Current Winners</h2>
-        <table>
-            <thead><tr><th>#</th><th>Name</th><th>Date</th><th>Tournament</th><th></th></tr></thead>
-            <tbody>${winnerRows}</tbody>
-        </table>
-    </div>
-</body>
-</html>`;
-}
-
 loadWinners();
 
 // Serve trophy page at /trophy
 app.get('/trophy', (req, res) => {
   res.send(renderTrophyPage());
-});
-
-// Trophy admin UI
-app.get('/trophy/admin', (req, res) => {
-  res.send(renderAdminPage(null));
-});
-
-app.post('/trophy/admin', (req, res) => {
-  const { password, name, date, tournament } = req.body;
-  if (password !== TROPHY_PASSWORD) {
-    return res.send(renderAdminPage({ ok: false, text: 'Wrong password.' }));
-  }
-  if (!name || !date || !tournament) {
-    return res.send(renderAdminPage({ ok: false, text: 'Name, date, and tournament are all required.' }));
-  }
-  winners.push({ name: name.trim(), date: date.trim(), tournament: tournament.trim() });
-  saveWinners();
-  res.send(renderAdminPage({ ok: true, text: `Added winner: ${name}` }));
-});
-
-app.post('/trophy/admin/delete', (req, res) => {
-  const { password, index } = req.body;
-  if (password !== TROPHY_PASSWORD) {
-    return res.send(renderAdminPage({ ok: false, text: 'Wrong password.' }));
-  }
-  const i = parseInt(index);
-  if (isNaN(i) || i < 0 || i >= winners.length) {
-    return res.send(renderAdminPage({ ok: false, text: 'Invalid index.' }));
-  }
-  const removed = winners.splice(i, 1)[0];
-  saveWinners();
-  res.send(renderAdminPage({ ok: true, text: `Deleted winner: ${removed.name}` }));
 });
 
 // Serve static files (after explicit routes so /trophy isn't intercepted by trophy/index.html)
