@@ -78,6 +78,26 @@ const timerStates = new Map();    // timerId -> {status, endTime, timeLeft}
 const timerElements = new Map();  // timerId -> {display, startBtn, pauseBtn, resetBtn, durationInput, minLabel}
 const timerIntervals = new Map(); // timerId -> intervalId
 
+// Device clocks can be off by many seconds, so timers count down against the
+// server's clock: serverOffset = server time - device time, from each timer message.
+// A message that arrives late (locked phone, slow network) makes the offset come out
+// too low, never too high, so keep the largest reading. Reset on each (re)connect in
+// case the device clock was corrected in the meantime.
+let serverOffset = 0;
+let serverOffsetStale = true; // next reading replaces serverOffset outright
+function updateServerOffset(message) {
+  if (typeof message.timestamp === 'number') {
+    const offset = message.timestamp - Date.now();
+    if (serverOffsetStale || offset > serverOffset) {
+      serverOffset = offset;
+      serverOffsetStale = false;
+    }
+  }
+}
+function serverNow() {
+  return Date.now() + serverOffset;
+}
+
 // Helper to send state updates
 function syncStateToServer(type, payload) {
   if (!isSyncingFromServer && hasReceivedInitialState && typeof wsClient !== 'undefined') {
@@ -328,6 +348,8 @@ function recomputeResults() {
 function setupWebSocketSync(tournamentHash) {
   // Handler for full state sync
   wsClient.on('FULL_STATE', (message) => {
+    // Sent on every (re)connect; fresh TIMER_SYNCs follow and re-measure the offset
+    serverOffsetStale = true;
     isSyncingFromServer = true;
     const state = message.state;
 
@@ -524,22 +546,27 @@ function setupWebSocketSync(tournamentHash) {
   });
 
   wsClient.on('TIMER_STARTED', (message) => {
+    updateServerOffset(message);
     applyTimerState(message.payload.timerId, { status: 'running', endTime: message.payload.endTime });
   });
 
   wsClient.on('TIMER_PAUSED', (message) => {
+    updateServerOffset(message);
     applyTimerState(message.payload.timerId, { status: 'paused', timeLeft: message.payload.timeLeft });
   });
 
   wsClient.on('TIMER_RESET', (message) => {
+    updateServerOffset(message);
     applyTimerState(message.payload.timerId, { status: 'ready' });
   });
 
   wsClient.on('TIMER_FINISHED', (message) => {
+    updateServerOffset(message);
     applyTimerState(message.payload.timerId, { status: 'finished' });
   });
 
   wsClient.on('TIMER_SYNC', (message) => {
+    updateServerOffset(message);
     const { timerId, isRunning, endTime, timeLeft } = message.payload;
     if (isRunning) {
       applyTimerState(timerId, { status: 'running', endTime });
@@ -950,7 +977,7 @@ function applyTimerState(timerId, state) {
     pauseBtn.style.display = '';
     resetBtn.style.display = '';
     const tick = () => {
-      const left = Math.max(0, Math.floor((state.endTime - Date.now()) / 1000));
+      const left = Math.max(0, Math.floor((state.endTime - serverNow()) / 1000));
       timerInput.value = formatTimerTime(left);
       if (left === 0) {
         clearInterval(timerIntervals.get(timerId));

@@ -416,9 +416,9 @@ Brad,Ivan,Mona,Stan
         const parts = hash.split('/');
         const homeCss = document.getElementById('home-css');
 
-        // Check if this is a timer route
+        // Old standalone timer links (#HASH/timer/...) go to the tournament page
         if (parts.length >= 3 && parts[1] === 'timer') {
-            window.location.href = '/timer' + window.location.hash;
+            window.location.hash = parts[0];
             return;
         }
 

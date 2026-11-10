@@ -241,11 +241,6 @@ app.post('/trophy/admin/delete', (req, res) => {
 // Serve static files (after explicit routes so /trophy isn't intercepted by trophy/index.html)
 app.use(express.static(path.join(__dirname)));
 
-// Serve timer page at /timer
-app.get('/timer', (req, res) => {
-  res.sendFile(path.join(__dirname, 'timer', 'index.html'));
-});
-
 // Store tournaments by hash
 const tournaments = new Map();
 
@@ -445,7 +440,8 @@ function handleClientMessage(ws, data) {
         endTime: timer.endTime,
         timeLeft,
         duration: timer.duration
-      }
+      },
+      timestamp: Date.now()
     }));
     console.log(`Client joined timer: ${hash}/${timerId}`);
     return;
