@@ -7,17 +7,58 @@ class WebSocketClient {
     this.reconnectDelay = 1000;
     this.messageHandlers = new Map();
     this.isReconnecting = false;
+    this.reconnectTimer = null;
+    this.pingTimeout = null;
     this.tournamentHash = null;
 
+    // After a phone unlock or laptop wake the socket may be closed, or dead but still
+    // reporting OPEN (the OS dropped it while asleep). Check it on every wake signal.
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') {
-        if (!this.ws || this.ws.readyState === WebSocket.CLOSED || this.ws.readyState === WebSocket.CLOSING) {
-          this.reconnectAttempts = 0;
-          this.isReconnecting = false;
-          this.attemptReconnect();
-        }
-      }
+      if (document.visibilityState === 'visible') this.checkConnection();
     });
+    window.addEventListener('online', () => this.checkConnection());
+
+    // Laptops don't always fire visibilitychange on wake, so also watch for a gap in
+    // this interval's ticks, which means the device was asleep.
+    let lastTick = Date.now();
+    setInterval(() => {
+      const now = Date.now();
+      if (now - lastTick > 15000) this.checkConnection();
+      lastTick = now;
+    }, 5000);
+  }
+
+  checkConnection() {
+    if (!this.tournamentHash) return;
+
+    if (!this.ws || this.ws.readyState === WebSocket.CLOSED || this.ws.readyState === WebSocket.CLOSING) {
+      this.restartReconnect();
+      return;
+    }
+
+    // Still connecting, or a ping is already waiting for its PONG
+    if (this.ws.readyState !== WebSocket.OPEN || this.pingTimeout) return;
+
+    const ws = this.ws;
+    this.send('PING', {});
+    this.pingTimeout = setTimeout(() => {
+      this.pingTimeout = null;
+      if (ws === this.ws) {
+        console.warn('No PONG from server; treating connection as dead');
+        this.ws = null;
+        ws.close();
+        this.showConnectionStatus('disconnected');
+        this.restartReconnect();
+      }
+    }, 5000);
+  }
+
+  // Start reconnecting from the first (shortest) delay, replacing any pending retry
+  restartReconnect() {
+    clearTimeout(this.reconnectTimer);
+    this.reconnectAttempts = 0;
+    this.isReconnecting = false;
+    this.attemptReconnect();
   }
 
   connect(tournamentHash) {
@@ -36,6 +77,8 @@ class WebSocketClient {
     ws.onopen = () => {
       if (ws !== this.ws) return;
       console.log('WebSocket connected');
+      clearTimeout(this.pingTimeout);
+      this.pingTimeout = null;
       this.reconnectAttempts = 0;
       this.isReconnecting = false;
       this.showConnectionStatus('connected');
@@ -50,6 +93,11 @@ class WebSocketClient {
       if (ws !== this.ws) return;
       try {
         const message = JSON.parse(event.data);
+        if (message.type === 'PONG') {
+          clearTimeout(this.pingTimeout);
+          this.pingTimeout = null;
+          return;
+        }
         this.handleMessage(message);
       } catch (error) {
         console.error('Error parsing WebSocket message:', error);
@@ -100,7 +148,7 @@ class WebSocketClient {
       console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
 
       this.showConnectionStatus('reconnecting');
-      setTimeout(() => {
+      this.reconnectTimer = setTimeout(() => {
         // Clear before connecting so that if this attempt fails, its onclose schedules the next one
         this.isReconnecting = false;
         this.connect(this.tournamentHash);

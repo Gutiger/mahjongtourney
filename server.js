@@ -387,6 +387,12 @@ function broadcastToTimer(timer, type, payload) {
 function handleClientMessage(ws, data) {
   const { type, payload } = data;
 
+  // Clients ping on wake to check the connection is still alive
+  if (type === 'PING') {
+    ws.send(JSON.stringify({ type: 'PONG' }));
+    return;
+  }
+
   // Handle JOIN_TOURNAMENT first
   if (type === 'JOIN_TOURNAMENT') {
     const { hash } = payload;
