@@ -25,9 +25,16 @@ class WebSocketClient {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}`;
 
-    this.ws = new WebSocket(wsUrl);
+    const oldWs = this.ws;
+    const ws = new WebSocket(wsUrl);
+    this.ws = ws;
+    if (oldWs && oldWs.readyState <= WebSocket.OPEN) {
+      oldWs.close();
+    }
 
-    this.ws.onopen = () => {
+    // Handlers ignore events from an old socket that was replaced by a newer one
+    ws.onopen = () => {
+      if (ws !== this.ws) return;
       console.log('WebSocket connected');
       this.reconnectAttempts = 0;
       this.isReconnecting = false;
@@ -39,7 +46,8 @@ class WebSocketClient {
       }
     };
 
-    this.ws.onmessage = (event) => {
+    ws.onmessage = (event) => {
+      if (ws !== this.ws) return;
       try {
         const message = JSON.parse(event.data);
         this.handleMessage(message);
@@ -48,13 +56,14 @@ class WebSocketClient {
       }
     };
 
-    this.ws.onclose = () => {
+    ws.onclose = () => {
+      if (ws !== this.ws) return;
       console.log('WebSocket disconnected');
       this.showConnectionStatus('disconnected');
       this.attemptReconnect();
     };
 
-    this.ws.onerror = (error) => {
+    ws.onerror = (error) => {
       console.error('WebSocket error:', error);
     };
   }
@@ -92,6 +101,8 @@ class WebSocketClient {
 
       this.showConnectionStatus('reconnecting');
       setTimeout(() => {
+        // Clear before connecting so that if this attempt fails, its onclose schedules the next one
+        this.isReconnecting = false;
         this.connect(this.tournamentHash);
       }, delay);
     } else {
